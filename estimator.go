@@ -182,19 +182,66 @@ func (e *TokenLimitEstimator) calculatePercentile(values []int, percentile float
 	return values[index]
 }
 
+// calculateDeviation calculates the percentage deviation between actual and estimated values
+func (e *TokenLimitEstimator) calculateDeviation(actual, estimated int) float64 {
+	if estimated == 0 {
+		return 0
+	}
+	return float64(actual-estimated) / float64(estimated) * 100
+}
+
+// formatAccuracyWarning generates a warning message if deviation exceeds threshold
+func (e *TokenLimitEstimator) formatAccuracyWarning(deviation float64, isAverage bool) string {
+	if math.Abs(deviation) > AccuracyWarningThreshold {
+		if isAverage {
+			return fmt.Sprintf("Warning: Token limit estimation may be inaccurate (avg deviation: %.1f%%)", deviation)
+		}
+		return fmt.Sprintf("Warning: Token limit estimation may be inaccurate (deviation: %.1f%%)", deviation)
+	}
+	return ""
+}
+
 // GetAccuracyReport generates a report on estimation accuracy
 func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens, estimatedLimit int) string {
 	if estimatedLimit == 0 {
 		return ""
 	}
 
-	deviation := float64(actualTokens-estimatedLimit) / float64(estimatedLimit) * 100
+	deviation := e.calculateDeviation(actualTokens, estimatedLimit)
+	return e.formatAccuracyWarning(deviation, false)
+}
 
-	if math.Abs(deviation) > AccuracyWarningThreshold {
-		return fmt.Sprintf("Warning: Token limit estimation may be inaccurate (deviation: %.1f%%)", deviation)
+// GetHistoricalAccuracyReport evaluates estimation accuracy based on historical data
+func (e *TokenLimitEstimator) GetHistoricalAccuracyReport(plan string, blocks []Block, currentEstimatedLimit int) string {
+	if currentEstimatedLimit == 0 || len(blocks) < MinHistoricalSessions {
+		return ""
 	}
 
-	return ""
+	// Collect completed sessions for accuracy analysis
+	var deviations []float64
+	for _, block := range blocks {
+		if !block.IsGap && !block.IsActive && block.TotalTokens > 0 {
+			// Calculate what the limit would have been estimated for this historical session
+			historicalEstimate := e.EstimateLimit(plan, blocks)
+			if historicalEstimate > 0 {
+				deviation := e.calculateDeviation(block.TotalTokens, historicalEstimate)
+				deviations = append(deviations, math.Abs(deviation))
+			}
+		}
+	}
+
+	if len(deviations) < MinHistoricalSessions {
+		return ""
+	}
+
+	// Calculate average deviation
+	avgDeviation := 0.0
+	for _, d := range deviations {
+		avgDeviation += d
+	}
+	avgDeviation /= float64(len(deviations))
+
+	return e.formatAccuracyWarning(avgDeviation, true)
 }
 
 // GetActualPlan returns the actual plan being used (resolves 'auto' to detected plan)

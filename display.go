@@ -50,7 +50,7 @@ func (d *Display) Render(session *Session, estimator *TokenLimitEstimator, plan 
 	d.renderNotifications(&buffer, session, plan)
 
 	// Add accuracy warning if needed
-	if warning := estimator.GetAccuracyReport(plan, session.Block.TotalTokens, session.Metrics.Tokens.Limit); warning != "" {
+	if warning := estimator.GetHistoricalAccuracyReport(plan, session.AllBlocks, session.Metrics.Tokens.Limit); warning != "" {
 		buffer.WriteString("\n" + color.YellowString(warning))
 	}
 
@@ -225,7 +225,6 @@ func (d *Display) getRegularBarColor(percentage float64) string {
 		return color.RedString("|")
 	}
 }
-
 
 // RenderError displays an error message
 func (d *Display) RenderError(message string) string {
