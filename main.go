@@ -293,14 +293,14 @@ func calculatePredictedEnd(tokens TokenMetrics, burnRate float64, currentTime, s
 func fetchTodayTotalCost(currentTime time.Time) float64 {
 	// Get today's date in YYYY-MM-DD format
 	todayStr := currentTime.Format("2006-01-02")
-	
+
 	// Run ccusage daily command
 	cmd := exec.Command("ccusage", "daily", "--json")
 	output, err := cmd.Output()
 	if err != nil {
 		return 0.0
 	}
-	
+
 	// Parse JSON response
 	var response struct {
 		Daily []DailyUsage `json:"daily"`
@@ -308,14 +308,14 @@ func fetchTodayTotalCost(currentTime time.Time) float64 {
 	if err := json.Unmarshal(output, &response); err != nil {
 		return 0.0
 	}
-	
+
 	// Find today's entry
 	for _, day := range response.Daily {
 		if day.Date == todayStr {
 			return day.TotalCost
 		}
 	}
-	
+
 	return 0.0
 }
 

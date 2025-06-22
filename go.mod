@@ -1,6 +1,6 @@
 module github.com/Sixeight/cctop
 
-go 1.21
+go 1.24.4
 
 require (
 	github.com/fatih/color v1.16.0

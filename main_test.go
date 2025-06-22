@@ -176,7 +176,6 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 	}
 }
 
-
 func TestCreateProgressBars(t *testing.T) {
 	// Test progress bar for tokens
 	bar := createProgressBar(50.0, false)
