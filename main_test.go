@@ -36,8 +36,8 @@ func TestGetTokenLimit(t *testing.T) {
 			expected: 140000,
 		},
 		{
-			name:     "Custom max with blocks",
-			planType: "custom_max",
+			name:     "Auto with blocks",
+			planType: "auto",
 			blocks: []Block{
 				{TotalTokens: 5000, Entries: 40, IsGap: false, IsActive: false},
 				{TotalTokens: 8000, Entries: 50, IsGap: false, IsActive: false},
@@ -46,8 +46,8 @@ func TestGetTokenLimit(t *testing.T) {
 			expected: 7000, // Will use hybrid approach
 		},
 		{
-			name:     "Custom max without blocks",
-			planType: "custom_max",
+			name:     "Auto without blocks",
+			planType: "auto",
 			blocks:   nil,
 			expected: 7000, // Falls back to static limits
 		},
@@ -63,7 +63,7 @@ func TestGetTokenLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := getTokenLimit(tt.planType, tt.blocks)
 			// Allow some variance for dynamic calculations
-			if tt.planType == "custom_max" && tt.blocks != nil {
+			if tt.planType == "auto" && tt.blocks != nil {
 				if result < tt.expected-1000 || result > tt.expected+1000 {
 					t.Errorf("getTokenLimit(%s) = %d, expected around %d", tt.planType, result, tt.expected)
 				}

@@ -22,8 +22,8 @@ make fmt-check    # Check formatting without modifying files
 make lint-check   # Quick linting for CI (errors only)
 
 # Development
-go run .                      # Run without building
-go run . --plan max5          # Run with specific plan
+go run .                      # Run without building (uses auto plan)
+go run . --plan pro           # Run with specific plan
 go run . analyze              # Analyze token limit estimation accuracy
 go test -v -run TestName      # Run specific test
 go test -v ./... -count=1     # Run all tests without cache
@@ -105,9 +105,12 @@ The `TokenLimitEstimator` provides dynamic, learning-based token limit estimatio
 - Returns tokens/minute rate for predictive estimates
 
 ### Plan Detection
-- `custom_max`: Uses historical data to estimate appropriate limits
-- Automatic plan switching when limits are exceeded (e.g., pro → custom_max at >7000 tokens)
-- Dynamic limits now replace hardcoded values
+- `auto` (default): Automatically detects plan level from usage history
+  - History shows 100k+ tokens → Uses Max20 plan (900 messages)
+  - History shows 25k+ tokens → Uses Max5 plan (225 messages)
+  - Otherwise → Uses Pro plan (45 messages)
+- Automatic plan switching when limits are exceeded (e.g., pro → auto at >7000 tokens)
+- All plans use dynamic estimation that improves with usage data
 
 ## Important Implementation Notes
 

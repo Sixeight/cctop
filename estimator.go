@@ -101,6 +101,11 @@ func removeOutliers(values []int) []int {
 
 // calculateBaseLimit calculates limit based on official message counts
 func (e *TokenLimitEstimator) calculateBaseLimit(plan string, blocks []Block) int {
+	// For auto plan, detect appropriate plan level from historical data
+	if plan == "auto" {
+		plan = e.detectPlanFromHistory(blocks)
+	}
+
 	base, exists := e.baseLimits[plan]
 	if !exists {
 		// Default to pro plan
@@ -115,6 +120,26 @@ func (e *TokenLimitEstimator) calculateBaseLimit(plan string, blocks []Block) in
 
 	// Use default tokens per message
 	return base.Messages * base.DefaultTokensPerMsg
+}
+
+// detectPlanFromHistory detects the appropriate plan based on historical usage
+func (e *TokenLimitEstimator) detectPlanFromHistory(blocks []Block) string {
+	var maxTokens int
+	for _, block := range blocks {
+		if !block.IsGap && !block.IsActive && block.TotalTokens > maxTokens {
+			maxTokens = block.TotalTokens
+		}
+	}
+
+	// Detect plan based on historical max usage
+	switch {
+	case maxTokens > 100000:
+		return "max20"
+	case maxTokens > 25000:
+		return "max5"
+	default:
+		return "pro"
+	}
 }
 
 // calculateAvgTokensPerMessage calculates average tokens per message from recent sessions

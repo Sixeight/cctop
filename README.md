@@ -14,9 +14,9 @@ Tokens: 3,640/7,000  Estimate: 16:45  Reset: 15:30  Status: OK
 ## Features
 
 - Real-time token usage monitoring
-- Dynamic token limit estimation from usage patterns
-- Burn rate calculation with depletion predictions
-- Automatic plan detection (Pro/Max5/Max20)
+- Auto mode: Automatically detects your plan level from usage history
+- Dynamic token limit estimation that improves over time
+- Burn rate calculation with accurate depletion predictions
 
 ## Installation
 
@@ -31,20 +31,16 @@ npm install -g ccusage
 ## Usage
 
 ```bash
-# Start monitoring with default settings
+# Start monitoring (auto-detects your plan)
 cctop
 
-# Use a specific plan
-cctop --plan pro          # Dynamic estimation based on Pro plan
-cctop --plan max5         # Dynamic estimation based on Max5 plan
-cctop --plan max20        # Dynamic estimation based on Max20 plan
-cctop --plan custom_max   # Auto-detect from history
+# Override with specific plan
+cctop --plan pro          # Force Pro plan limits
+cctop --plan max5         # Force Max5 plan limits
+cctop --plan max20        # Force Max20 plan limits
 
-# Set custom timezone
+# Custom timezone
 cctop --timezone US/Eastern
-
-# Analyze estimation accuracy
-cctop analyze
 ```
 
 ### Display Explanation
@@ -57,26 +53,12 @@ cctop analyze
   - `LIMIT EXCEEDED` - Already over token limit
 - **Accuracy warning**: Shows when token limit estimation may be inaccurate
 
-### How Sessions Work
+### How It Works
 
-Claude Code uses a 5-hour rolling window system:
-
-- Sessions start with your first message to Claude
-- Each session lasts exactly 5 hours from that first message
-- Token limits apply within each 5-hour session
-- New sessions begin automatically after the previous one ends
-
-### Dynamic Token Limit Estimation
-
-cctop now learns from your usage patterns to provide more accurate token limits:
-
-- **Initial estimates** based on official Anthropic message counts
-- **Adaptive learning** improves accuracy as you use Claude more
-- **Outlier detection** removes anomalous sessions from calculations
-- **Hybrid approach** combines historical data with official limits
-- **Accuracy monitoring** warns when estimates may be unreliable
-
-The more you use Claude, the more accurate the estimates become!
+- Sessions last 5 hours from first message
+- Token limits reset with each new session
+- Auto mode detects your plan from usage history (100k+ → Max20, 25k+ → Max5)
+- Estimates improve with more usage data
 
 ## Credits
 

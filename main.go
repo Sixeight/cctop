@@ -78,7 +78,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&plan, "plan", "pro", "Claude plan type (pro, max5, max20, custom_max)")
+	rootCmd.Flags().StringVar(&plan, "plan", "auto", "Claude plan type (auto, pro, max5, max20)")
 	rootCmd.Flags().StringVar(&timezone, "timezone", "Asia/Tokyo", "Timezone for display")
 
 	// Add analyze command for testing
@@ -242,18 +242,23 @@ func buildDisplay(activeBlock *Block, allBlocks []Block, tokenLimit *int) string
 func calculateTokenMetrics(activeBlock *Block, allBlocks []Block, tokenLimit *int) TokenMetrics {
 	tokensUsed := activeBlock.TotalTokens
 
-	// Auto-switch to custom_max if needed
+	// Auto-switch to auto if needed
 	if tokensUsed > *tokenLimit && plan == "pro" {
-		newLimit := getTokenLimit("custom_max", allBlocks)
+		newLimit := getTokenLimit("auto", allBlocks)
 		if newLimit > *tokenLimit {
 			*tokenLimit = newLimit
 		}
 	}
 
+	percentage := 0.0
+	if *tokenLimit > 0 {
+		percentage = float64(tokensUsed) / float64(*tokenLimit) * 100
+	}
+
 	return TokenMetrics{
 		Used:       tokensUsed,
 		Limit:      *tokenLimit,
-		Percentage: float64(tokensUsed) / float64(*tokenLimit) * 100,
+		Percentage: percentage,
 		Remaining:  *tokenLimit - tokensUsed,
 	}
 }
@@ -373,13 +378,26 @@ func buildStatusBar(buffer *strings.Builder, tokens TokenMetrics, times TimeMetr
 func addNotifications(buffer *strings.Builder, tokens TokenMetrics, tokenLimit *int) {
 	if tokens.Used > 7000 && plan == "pro" && *tokenLimit > 7000 {
 		fmt.Fprintf(buffer, "\n%s",
-			color.HiBlackString("Note: Auto-switched to custom_max (%s tokens)",
+			color.HiBlackString("Note: Auto-switched to auto plan (%s tokens)",
 				formatNumber(*tokenLimit)))
 	}
 }
 
 func createProgressBar(percentage float64, isTime bool) string {
+	// Ensure percentage is within valid range
+	if percentage < 0 {
+		percentage = 0
+	} else if percentage > 100 {
+		percentage = 100
+	}
+
 	filled := int(float64(ProgressBarWidth) * percentage / 100)
+	if filled < 0 {
+		filled = 0
+	} else if filled > ProgressBarWidth {
+		filled = ProgressBarWidth
+	}
+
 	bar := strings.Repeat("|", filled) + strings.Repeat(" ", ProgressBarWidth-filled)
 
 	if isTime {
