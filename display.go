@@ -126,7 +126,7 @@ func (d *Display) createProgressBar(percentage float64, isTime bool, plan string
 	filled = clampInt(filled, 0, ProgressBarWidth)
 
 	// Calculate switch line position for Max plans
-	var switchLinePos int = -1
+	switchLinePos := -1
 	if !isTime && plan != "" {
 		switch plan {
 		case "max5":

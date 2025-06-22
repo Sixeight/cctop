@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -81,4 +82,28 @@ func clampInt(value, minVal, maxVal int) int {
 		return maxVal
 	}
 	return value
+}
+
+// calculateStdDev calculates the standard deviation of a slice of integers
+func calculateStdDev(values []int) float64 {
+	if len(values) < 2 {
+		return 0
+	}
+
+	// Calculate mean
+	sum := 0
+	for _, v := range values {
+		sum += v
+	}
+	mean := float64(sum) / float64(len(values))
+
+	// Calculate variance
+	variance := 0.0
+	for _, v := range values {
+		diff := float64(v) - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(values))
+
+	return math.Sqrt(variance)
 }

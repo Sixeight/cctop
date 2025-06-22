@@ -68,7 +68,7 @@ func performAnalysis(plan string, blocks []Block, estimator *TokenLimitEstimator
 
 	actualMax := 0
 	if len(sessionTokens) > 0 {
-		actualMax = calculatePercentile(sessionTokens, 95)
+		actualMax = estimator.calculatePercentile(sessionTokens, 95)
 	}
 
 	avgTokensPerMsg := 0
@@ -95,29 +95,6 @@ func performAnalysis(plan string, blocks []Block, estimator *TokenLimitEstimator
 		AverageTokensPerMsg: avgTokensPerMsg,
 		StdDeviation:        stdDev,
 	}
-}
-
-func calculateStdDev(values []int) float64 {
-	if len(values) < 2 {
-		return 0
-	}
-
-	// Calculate mean
-	sum := 0
-	for _, v := range values {
-		sum += v
-	}
-	mean := float64(sum) / float64(len(values))
-
-	// Calculate variance
-	variance := 0.0
-	for _, v := range values {
-		diff := float64(v) - mean
-		variance += diff * diff
-	}
-	variance /= float64(len(values))
-
-	return math.Sqrt(variance)
 }
 
 func printAnalysis(a AccuracyAnalysis) {

@@ -7,14 +7,14 @@ import (
 
 // Session represents an active Claude session with all related data
 type Session struct {
-	Block         *Block
 	StartTime     time.Time
 	EndTime       time.Time
+	Block         *Block
+	PrimaryModel  string
+	CurrentModels []string
 	Metrics       SessionMetrics
 	BurnRate      float64
 	TodayCost     float64
-	CurrentModels []string
-	PrimaryModel  string
 }
 
 // SessionMetrics contains all calculated metrics for a session
@@ -32,7 +32,7 @@ func NewSession(block *Block, allBlocks []Block, tokenLimit int, currentTime tim
 		Block:         block,
 		StartTime:     startTime,
 		EndTime:       endTime,
-		BurnRate:      calculateHourlyBurnRate(allBlocks, currentTime),
+		BurnRate:      burnCalc.Calculate(allBlocks, currentTime),
 		TodayCost:     fetchTodayTotalCost(currentTime),
 		CurrentModels: block.Models,
 		PrimaryModel:  determinePrimaryModel(block.Models),

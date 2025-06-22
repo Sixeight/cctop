@@ -178,7 +178,8 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := calculateHourlyBurnRate(tt.blocks, currentTime)
+			calc := NewBurnRateCalculator()
+			result := calc.Calculate(tt.blocks, currentTime)
 			// Allow for some floating point variance
 			if result < tt.expected-1.0 || result > tt.expected+1.0 {
 				t.Errorf("calculateHourlyBurnRate() = %.2f, expected %.2f", result, tt.expected)
@@ -190,13 +191,13 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 func TestCreateProgressBars(t *testing.T) {
 	// Test progress bar for tokens
 	display := NewDisplay("Asia/Tokyo")
-	bar := display.createProgressBar(50.0, false)
+	bar := display.createProgressBar(50.0, false, "pro")
 	if bar == "" {
 		t.Error("createProgressBar returned empty string for token bar")
 	}
 
 	// Test progress bar for time
-	bar = display.createProgressBar(50.0, true)
+	bar = display.createProgressBar(50.0, true, "")
 	if bar == "" {
 		t.Error("createProgressBar returned empty string for time bar")
 	}

@@ -41,11 +41,11 @@ type DisplayConfig struct {
 type Block struct {
 	StartTime     string   `json:"startTime"`
 	ActualEndTime string   `json:"actualEndTime"`
+	Models        []string `json:"models"`
 	TotalTokens   int      `json:"totalTokens"`
 	Entries       int      `json:"entries"`
 	IsActive      bool     `json:"isActive"`
 	IsGap         bool     `json:"isGap"`
-	Models        []string `json:"models"`
 }
 
 // CCUsageData represents the JSON response from ccusage
@@ -67,13 +67,13 @@ type SessionData struct {
 // SessionInfo represents individual session information
 type SessionInfo struct {
 	SessionID       string           `json:"sessionId"`
+	LastActivity    string           `json:"lastActivity"`
+	ModelsUsed      []string         `json:"modelsUsed"`
+	ModelBreakdowns []ModelBreakdown `json:"modelBreakdowns"`
 	InputTokens     int              `json:"inputTokens"`
 	OutputTokens    int              `json:"outputTokens"`
 	TotalTokens     int              `json:"totalTokens"`
 	TotalCost       float64          `json:"totalCost"`
-	LastActivity    string           `json:"lastActivity"`
-	ModelsUsed      []string         `json:"modelsUsed"`
-	ModelBreakdowns []ModelBreakdown `json:"modelBreakdowns"`
 }
 
 // ModelBreakdown represents per-model usage breakdown
@@ -280,14 +280,6 @@ func fetchTodayTotalCost(currentTime time.Time) float64 {
 // Removed createProgressBar - now in display.go
 
 // Removed formatTime - now in utils.go
-
-// calculateHourlyBurnRate delegates to BurnRateCalculator
-func calculateHourlyBurnRate(blocks []Block, currentTime time.Time) float64 {
-	if burnCalc == nil {
-		burnCalc = NewBurnRateCalculator()
-	}
-	return burnCalc.Calculate(blocks, currentTime)
-}
 
 // Removed calculateBlockTokensInHour - now in burnrate.go
 

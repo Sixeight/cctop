@@ -62,18 +62,18 @@ func (e *TokenLimitEstimator) estimateFromHistory(blocks []Block) int {
 	}
 
 	// Remove extreme outliers using IQR method
-	cleaned := removeOutliers(sessionMaxTokens)
+	cleaned := e.removeOutliers(sessionMaxTokens)
 	if len(cleaned) < MinCleanedSessions {
 		// If too many outliers removed, use fallback percentile of original
-		return calculatePercentile(sessionMaxTokens, FallbackPercentile)
+		return e.calculatePercentile(sessionMaxTokens, FallbackPercentile)
 	}
 
 	// Use historical percentile of cleaned data
-	return calculatePercentile(cleaned, HistoricalPercentile)
+	return e.calculatePercentile(cleaned, HistoricalPercentile)
 }
 
 // removeOutliers removes values outside 1.5 * IQR
-func removeOutliers(values []int) []int {
+func (e *TokenLimitEstimator) removeOutliers(values []int) []int {
 	if len(values) < 4 {
 		return values
 	}
@@ -82,8 +82,8 @@ func removeOutliers(values []int) []int {
 	copy(sorted, values)
 	sort.Ints(sorted)
 
-	q1 := calculatePercentile(sorted, 25)
-	q3 := calculatePercentile(sorted, 75)
+	q1 := e.calculatePercentile(sorted, 25)
+	q3 := e.calculatePercentile(sorted, 75)
 	iqr := q3 - q1
 
 	lowerBound := q1 - int(OutlierIQRMultiplier*float64(iqr))
@@ -165,7 +165,7 @@ func (e *TokenLimitEstimator) calculateAvgTokensPerMessage(blocks []Block) int {
 }
 
 // calculatePercentile calculates the nth percentile of a slice of integers
-func calculatePercentile(values []int, percentile float64) int {
+func (e *TokenLimitEstimator) calculatePercentile(values []int, percentile float64) int {
 	if len(values) == 0 {
 		return 0
 	}
