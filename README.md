@@ -1,6 +1,6 @@
 # cctop
 
-Monitor your Claude AI token usage in real-time with an htop-inspired terminal interface.
+Monitor your Claude Code token usage in real-time with an htop-inspired terminal interface.
 
 ```
 cctop - 15:04:05  cost: $12.45  burn rate: 156.30 tokens/min
@@ -57,6 +57,7 @@ cctop --timezone US/Eastern
 ### How Sessions Work
 
 Claude Code uses a 5-hour rolling window system:
+
 - Sessions start with your first message to Claude
 - Each session lasts exactly 5 hours from that first message
 - Token limits apply within each 5-hour session
@@ -86,3 +87,4 @@ Inspired by [Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claud
 ## License
 
 MIT
+
