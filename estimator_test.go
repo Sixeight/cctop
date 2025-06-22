@@ -5,7 +5,7 @@ import (
 )
 
 func TestTokenLimitEstimator(t *testing.T) {
-	estimator := NewTokenLimitEstimator()
+	est := NewTokenLimitEstimator()
 
 	tests := []struct {
 		name     string
@@ -60,7 +60,7 @@ func TestTokenLimitEstimator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := estimator.EstimateLimit(tt.plan, tt.blocks)
+			result := est.EstimateLimit(tt.plan, tt.blocks)
 
 			if tt.expected > 0 && result != tt.expected {
 				// For exact matches
@@ -121,7 +121,7 @@ func TestCalculatePercentile(t *testing.T) {
 }
 
 func TestGetAccuracyReport(t *testing.T) {
-	estimator := NewTokenLimitEstimator()
+	est := NewTokenLimitEstimator()
 
 	tests := []struct {
 		name           string
@@ -162,7 +162,7 @@ func TestGetAccuracyReport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			report := estimator.GetAccuracyReport(tt.plan, tt.actualTokens, tt.estimatedLimit)
+			report := est.GetAccuracyReport(tt.plan, tt.actualTokens, tt.estimatedLimit)
 			hasWarning := report != ""
 
 			if hasWarning != tt.expectWarning {

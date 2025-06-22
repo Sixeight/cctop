@@ -39,7 +39,7 @@ func analyzeEstimationAccuracy() {
 	// Analyze for each plan
 	plans := []string{"pro", "max5", "max20"}
 	fmt.Println("Token Limit Estimation Accuracy Analysis")
-	fmt.Println("========================================\n")
+	fmt.Println("========================================")
 
 	for _, plan := range plans {
 		analysis := performAnalysis(plan, data.Blocks, estimator)
@@ -132,7 +132,7 @@ func printAnalysis(a AccuracyAnalysis) {
 
 func analyzeTokenPerMessageVariance(blocks []Block) {
 	fmt.Println("Token Per Message Variance Analysis")
-	fmt.Println("===================================\n")
+	fmt.Println("===================================")
 
 	var ratios []float64
 	for _, block := range blocks {
@@ -148,28 +148,28 @@ func analyzeTokenPerMessageVariance(blocks []Block) {
 	}
 
 	// Calculate statistics
-	min, max := ratios[0], ratios[0]
+	minVal, maxVal := ratios[0], ratios[0]
 	sum := 0.0
 	for _, r := range ratios {
-		if r < min {
-			min = r
+		if r < minVal {
+			minVal = r
 		}
-		if r > max {
-			max = r
+		if r > maxVal {
+			maxVal = r
 		}
 		sum += r
 	}
 	avg := sum / float64(len(ratios))
 
 	fmt.Printf("Token/Message Statistics:\n")
-	fmt.Printf("├─ Minimum: %.1f tokens/msg\n", min)
-	fmt.Printf("├─ Maximum: %.1f tokens/msg\n", max)
+	fmt.Printf("├─ Minimum: %.1f tokens/msg\n", minVal)
+	fmt.Printf("├─ Maximum: %.1f tokens/msg\n", maxVal)
 	fmt.Printf("├─ Average: %.1f tokens/msg\n", avg)
-	fmt.Printf("└─ Variance Range: %.1fx\n\n", max/min)
+	fmt.Printf("└─ Variance Range: %.1fx\n\n", maxVal/minVal)
 
 	// Explain implications
 	fmt.Println("Implications:")
-	if max/min > 3 {
+	if maxVal/minVal > 3 {
 		fmt.Println("⚠️  High variance (>3x) in token usage per message")
 		fmt.Println("   This makes static estimation less reliable")
 		fmt.Println("   Dynamic learning approach is recommended")

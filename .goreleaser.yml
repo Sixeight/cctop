@@ -1,0 +1,113 @@
+# .goreleaser.yml
+# GoReleaser configuration for cctop
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  groups:
+    - title: '✨ Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: '🐛 Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: '📚 Documentation'
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: '🏗️ Chores'
+      regexp: '^.*?chore(\([[:word:]]+\))??!?:.+$'
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: Sixeight
+    name: cctop
+  draft: false
+  prerelease: auto
+  mode: replace
+  
+  footer: |
+    ## Installation
+    
+    ### Homebrew (macOS/Linux)
+    ```bash
+    brew install Sixeight/tap/cctop
+    ```
+    
+    ### Go install
+    ```bash
+    go install github.com/Sixeight/cctop@latest
+    ```
+    
+    ### Manual
+    Download the appropriate archive for your platform and extract the binary.
+    
+    ## Prerequisites
+    
+    cctop requires the `ccusage` npm package:
+    ```bash
+    npm install -g ccusage
+    ```
+
+brews:
+  - repository:
+      owner: Sixeight
+      name: homebrew-tap
+    folder: Formula
+    homepage: https://github.com/Sixeight/cctop
+    description: Real-time terminal monitoring tool for Claude AI token usage
+    license: MIT
+    test: |
+      system "#{bin}/cctop", "--help"
+    dependencies:
+      - name: node
+        type: optional
+    install: |
+      bin.install "cctop"
+    caveats: |
+      cctop requires the ccusage npm package to be installed:
+        npm install -g ccusage

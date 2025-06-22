@@ -158,7 +158,7 @@ func calculatePercentile(values []int, percentile float64) int {
 }
 
 // GetAccuracyReport generates a report on estimation accuracy
-func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens int, estimatedLimit int) string {
+func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens, estimatedLimit int) string {
 	if estimatedLimit == 0 {
 		return ""
 	}

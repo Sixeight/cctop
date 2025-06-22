@@ -60,8 +60,8 @@ type TimeMetrics struct {
 // Display configuration
 type DisplayConfig struct {
 	CurrentTime time.Time
-	BurnRate    float64
 	Timezone    *time.Location
+	BurnRate    float64
 }
 
 var (
@@ -332,48 +332,49 @@ func fetchTodayTotalCost(currentTime time.Time) float64 {
 }
 
 func buildHeader(buffer *strings.Builder, config DisplayConfig, todayTotalCost float64) {
-	buffer.WriteString(fmt.Sprintf("cctop - %s  cost: $%.2f  burn rate: %.2f tokens/min\n\n",
+	fmt.Fprintf(buffer, "cctop - %s  cost: $%.2f  burn rate: %.2f tokens/min\n\n",
 		config.CurrentTime.Format("15:04:05"),
 		todayTotalCost,
-		config.BurnRate))
+		config.BurnRate)
 }
 
 func buildTokenBar(buffer *strings.Builder, tokens TokenMetrics) {
-	buffer.WriteString(fmt.Sprintf("Tokens  %s %.1f%% (%s/%s)\n",
+	fmt.Fprintf(buffer, "Tokens  %s %.1f%% (%s/%s)\n",
 		createProgressBar(tokens.Percentage, false),
 		tokens.Percentage,
 		formatNumber(tokens.Used),
-		formatNumber(tokens.Limit)))
+		formatNumber(tokens.Limit))
 }
 
 func buildTimeBar(buffer *strings.Builder, times TimeMetrics) {
-	buffer.WriteString(fmt.Sprintf("Session %s %.1f%% (%s remaining)\n\n",
+	fmt.Fprintf(buffer, "Session %s %.1f%% (%s remaining)\n\n",
 		createProgressBar(times.ProgressPercentage, true),
 		times.ProgressPercentage,
-		formatTime(times.MinutesRemaining)))
+		formatTime(times.MinutesRemaining))
 }
 
 func buildStatusBar(buffer *strings.Builder, tokens TokenMetrics, times TimeMetrics, predictedEnd time.Time, config DisplayConfig) {
-	buffer.WriteString(fmt.Sprintf("Tokens: %s/%s  Estimate: %s  Reset: %s  ",
+	fmt.Fprintf(buffer, "Tokens: %s/%s  Estimate: %s  Reset: %s  ",
 		formatNumber(tokens.Used), formatNumber(tokens.Limit),
 		predictedEnd.In(config.Timezone).Format("15:04"),
-		times.SessionEndTime.In(config.Timezone).Format("15:04")))
+		times.SessionEndTime.In(config.Timezone).Format("15:04"))
 
 	// Status message
-	if tokens.Used > tokens.Limit {
+	switch {
+	case tokens.Used > tokens.Limit:
 		buffer.WriteString(color.RedString("Status: LIMIT EXCEEDED"))
-	} else if predictedEnd.Before(times.SessionEndTime) {
+	case predictedEnd.Before(times.SessionEndTime):
 		buffer.WriteString(color.YellowString("Status: WARNING"))
-	} else {
+	default:
 		buffer.WriteString(color.GreenString("Status: OK"))
 	}
 }
 
 func addNotifications(buffer *strings.Builder, tokens TokenMetrics, tokenLimit *int) {
 	if tokens.Used > 7000 && plan == "pro" && *tokenLimit > 7000 {
-		buffer.WriteString(fmt.Sprintf("\n%s",
+		fmt.Fprintf(buffer, "\n%s",
 			color.HiBlackString("Note: Auto-switched to custom_max (%s tokens)",
-				formatNumber(*tokenLimit))))
+				formatNumber(*tokenLimit)))
 	}
 }
 

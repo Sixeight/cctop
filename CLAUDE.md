@@ -14,17 +14,25 @@ make all          # Format, lint, test, and build
 make build        # Build the binary
 make test         # Run tests
 make test-coverage # Run tests with coverage report
-make fmt          # Format code
-make lint         # Run linter (requires golangci-lint)
+make fmt          # Format code with gofumpt and goimports
+make lint         # Run comprehensive linting with auto-fix
+
+# CI-specific commands
+make fmt-check    # Check formatting without modifying files
+make lint-check   # Quick linting for CI (errors only)
 
 # Development
 go run .                      # Run without building
 go run . --plan max5          # Run with specific plan
 go run . analyze              # Analyze token limit estimation accuracy
 go test -v -run TestName      # Run specific test
+go test -v ./... -count=1     # Run all tests without cache
 
 # Clean up
 make clean        # Remove build artifacts
+
+# Release (local testing)
+goreleaser build --snapshot --clean
 ```
 
 ## Architecture & Key Design Decisions
@@ -33,9 +41,26 @@ make clean        # Remove build artifacts
 
 The system consists of several key components:
 
-1. **main.go**: Entry point, display loop, and UI rendering
-2. **estimator.go**: Dynamic token limit estimation using ML-like approach
-3. **analyze_accuracy.go**: Diagnostic tool for estimation accuracy analysis
+1. **main.go** (~450 lines): Entry point, display loop, and UI rendering
+   - Terminal control using ANSI escape sequences
+   - 3-second update loop with flicker-free rendering
+   - Signal handling for graceful shutdown
+
+2. **estimator.go** (~220 lines): Dynamic token limit estimation
+   - Hybrid approach combining official limits with historical data
+   - Outlier detection using IQR method
+   - Adaptive weighting based on sample size and variance
+
+3. **analyze_accuracy.go** (~185 lines): Diagnostic tool for estimation accuracy
+   - Temporary/debug tool - excluded from linting in .golangci.yml
+
+### Data Flow
+
+```
+ccusage (npm) → JSON → main.go → estimator.go → Display
+                           ↓
+                    analyze_accuracy.go (diagnostic)
+```
 
 ### Session Tracking System
 The tool implements Claude's 5-hour rolling window session system:
@@ -47,6 +72,7 @@ The tool implements Claude's 5-hour rolling window session system:
 ### Core Dependencies
 - `ccusage` npm package: Required for fetching token data (`npm install -g ccusage`)
 - The entire tool depends on ccusage JSON output format with `blocks` array containing session data
+- JSON structure: `blocks[]` with fields: `startTime`, `actualEndTime`, `totalTokens`, `entries`, `isActive`, `isGap`
 
 ### Display Architecture
 1. **Update Loop**: 3-second refresh cycle with flicker-free updates
@@ -58,17 +84,18 @@ The tool implements Claude's 5-hour rolling window session system:
 
 ### Token Limit Estimation System
 
-The new `TokenLimitEstimator` provides dynamic, learning-based token limit estimation:
+The `TokenLimitEstimator` provides dynamic, learning-based token limit estimation:
 
 1. **Hybrid Approach**: Combines official Anthropic message counts with historical usage data
    - Official limits: Pro=45 msgs, Max5=225 msgs, Max20=900 msgs (×150 tokens/msg default)
-   - Historical data: 95th percentile of past sessions after outlier removal
+   - Historical data: 90th percentile of past sessions after outlier removal (changed from 95th)
 
 2. **Adaptive Weighting**: Trust in historical data varies based on:
    - Sample size: <10 sessions = 30% weight, 20+ sessions = up to 80% weight
    - Data variance: High coefficient of variation reduces trust
 
 3. **Outlier Removal**: Uses IQR (Interquartile Range) method to exclude extreme values
+   - Values outside 1.5 * IQR are removed
 
 4. **Accuracy Monitoring**: Warns when estimation deviates >10% from actual usage
 
@@ -79,7 +106,7 @@ The new `TokenLimitEstimator` provides dynamic, learning-based token limit estim
 
 ### Plan Detection
 - `custom_max`: Uses historical data to estimate appropriate limits
-- Automatic plan switching when limits are exceeded
+- Automatic plan switching when limits are exceeded (e.g., pro → custom_max at >7000 tokens)
 - Dynamic limits now replace hardcoded values
 
 ## Important Implementation Notes
@@ -87,9 +114,12 @@ The new `TokenLimitEstimator` provides dynamic, learning-based token limit estim
 1. **Time Calculations**: All session timing is based on the active block's StartTime + 5 hours
 2. **Error Handling**: ccusage failures result in retry (no crash)
 3. **Signal Handling**: Ctrl+C properly restores cursor visibility
-4. **Number Formatting**: Custom comma insertion for readability
+4. **Number Formatting**: Custom comma insertion for readability (e.g., 7,000)
 5. **JSON Parsing**: Block structure includes `entries` field for message count
 6. **Estimator Initialization**: Global `estimator` instance created in main()
+7. **Tool Management**: Development tools are managed via go.mod's `tool` directive (Go 1.24+)
+   - No manual installation needed
+   - Tools run via `go run` commands in Makefile
 
 ## Testing Strategy
 
@@ -97,6 +127,29 @@ The new `TokenLimitEstimator` provides dynamic, learning-based token limit estim
 - Mock data tests for various usage patterns
 - Accuracy analysis tool (`cctop analyze`) for real-world validation
 - Test coverage target: >80% for critical paths
+- GitHub Actions CI runs tests on Linux, macOS, and Windows
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflows
+1. **ci.yml**: Runs on every push and PR
+   - Multi-OS testing (Ubuntu, macOS, Windows)
+   - Go 1.24.x
+   - Format checking, linting, tests, coverage
+   - Dependency vulnerability scanning
+
+2. **goreleaser.yml**: Runs on version tags (v*)
+   - Automated multi-platform releases
+   - Homebrew formula generation
+   - Changelog from commit messages (feat:, fix:, docs:, chore:)
+
+### Linting Configuration
+See `.golangci.yml` for comprehensive linting rules:
+- Basic: errcheck, govet, ineffassign, staticcheck, unused
+- Quality: revive, gocritic, prealloc, unconvert
+- Security: gosec
+- Test files have relaxed rules
+- `analyze_accuracy.go` is excluded from all linters
 
 ## Session Specification Reference
 

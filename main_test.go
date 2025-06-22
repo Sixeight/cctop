@@ -77,8 +77,8 @@ func TestGetTokenLimit(t *testing.T) {
 func TestFormatTime(t *testing.T) {
 	tests := []struct {
 		name     string
-		minutes  float64
 		expected string
+		minutes  float64
 	}{
 		{
 			name:     "Less than hour",
@@ -189,13 +189,13 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 func TestCreateProgressBars(t *testing.T) {
 	// Test progress bar for tokens
 	bar := createProgressBar(50.0, false)
-	if len(bar) == 0 {
+	if bar == "" {
 		t.Error("createProgressBar returned empty string for token bar")
 	}
 
 	// Test progress bar for time
 	bar = createProgressBar(50.0, true)
-	if len(bar) == 0 {
+	if bar == "" {
 		t.Error("createProgressBar returned empty string for time bar")
 	}
 }

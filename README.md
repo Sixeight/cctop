@@ -13,14 +13,10 @@ Tokens: 3,640/7,000  Estimate: 16:45  Reset: 15:30  Status: OK
 
 ## Features
 
-- Real-time token usage monitoring with htop-style progress bars
-- **Dynamic token limit estimation** - learns from your usage patterns
-- Smart burn rate calculation and depletion predictions
+- Real-time token usage monitoring
+- Dynamic token limit estimation from usage patterns
+- Burn rate calculation with depletion predictions
 - Automatic plan detection (Pro/Max5/Max20)
-- Clean, flicker-free terminal interface
-- 5-hour rolling session window tracking
-- Customizable timezone for display
-- Accuracy warnings when estimates deviate from actual usage
 
 ## Installation
 
@@ -81,25 +77,6 @@ cctop now learns from your usage patterns to provide more accurate token limits:
 - **Accuracy monitoring** warns when estimates may be unreliable
 
 The more you use Claude, the more accurate the estimates become!
-
-## Building
-
-```bash
-git clone https://github.com/Sixeight/cctop.git
-cd cctop
-make build
-```
-
-## Development
-
-```bash
-make test         # Run tests
-make test-coverage # Run tests with coverage report
-make fmt          # Format code
-make lint         # Run linter
-make all          # Format, lint, test, and build
-make help         # Show all commands
-```
 
 ## Credits
 

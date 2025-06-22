@@ -1,0 +1,121 @@
+# golangci-lint configuration
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    # Basic linters
+    - errcheck          # Missing error checks
+    - govet             # Equivalent to go vet
+    - ineffassign       # Unused assignments
+    - staticcheck       # Advanced static analysis
+    - unused            # Unused code
+    
+    # Code quality
+    - revive            # Successor to golint
+    - gocritic          # Advanced code analysis
+    - prealloc          # Slice preallocation optimization
+    - unconvert         # Unnecessary type conversions
+    
+    # Error handling
+    - nilerr            # Proper nil error handling
+    - errorlint         # Error handling best practices
+    
+    # Security
+    - gosec             # Security checks
+    
+    # Other useful linters
+    - misspell          # Spell checking
+    - bodyclose         # HTTP response body close verification
+    - copyloopvar       # Loop variable copy issues (Go 1.22+)
+    - thelper           # Test helper improvements
+    - gocyclo           # Cyclomatic complexity
+    - funlen            # Function length limits
+
+linters-settings:
+  revive:
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: superfluous-else
+      - name: unreachable-code
+    
+  govet:
+    enable-all: true
+    
+  gosec:
+    severity: low
+    confidence: low
+    
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - whyNoLint
+      - hugeParam
+      - rangeValCopy
+    
+  misspell:
+    locale: US
+    
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+    
+  gocyclo:
+    min-complexity: 15
+    
+  funlen:
+    lines: 100
+    statements: 50
+
+issues:
+  # Check all code
+  whole-files: true
+  
+  # Use default exclusions
+  exclude-use-default: true
+  
+  # Maximum display count (0 = unlimited)
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Disable some linters for test files
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - funlen
+        
+    # main function tends to be long
+    - path: main\.go
+      text: "Function 'main' is too long"
+      linters:
+        - funlen
+        
+    # analyze_accuracy.go is a temporary file
+    - path: analyze_accuracy\.go
+      linters:
+        - all
