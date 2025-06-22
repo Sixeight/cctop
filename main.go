@@ -26,6 +26,7 @@ type Block struct {
 	StartTime     string `json:"startTime"`
 	ActualEndTime string `json:"actualEndTime"`
 	TotalTokens   int    `json:"totalTokens"`
+	Entries       int    `json:"entries"`
 	IsActive      bool   `json:"isActive"`
 	IsGap         bool   `json:"isGap"`
 }
@@ -64,8 +65,9 @@ type DisplayConfig struct {
 }
 
 var (
-	plan     string
-	timezone string
+	plan      string
+	timezone  string
+	estimator *TokenLimitEstimator
 )
 
 var rootCmd = &cobra.Command{
@@ -78,9 +80,19 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVar(&plan, "plan", "pro", "Claude plan type (pro, max5, max20, custom_max)")
 	rootCmd.Flags().StringVar(&timezone, "timezone", "Asia/Tokyo", "Timezone for display")
+
+	// Add analyze command for testing
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "analyze",
+		Short: "Analyze token limit estimation accuracy",
+		Run: func(cmd *cobra.Command, args []string) {
+			testAccuracy()
+		},
+	})
 }
 
 func main() {
+	estimator = NewTokenLimitEstimator()
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -171,28 +183,21 @@ func findActiveBlock(blocks []Block) *Block {
 }
 
 func getInitialTokenLimit() int {
-	if plan == "custom_max" {
-		data := fetchUsageData()
-		if data != nil {
-			return getTokenLimit(plan, data.Blocks)
-		}
+	data := fetchUsageData()
+	if data != nil {
+		return estimator.EstimateLimit(plan, data.Blocks)
 	}
+	// Fallback to default limits if no data available
 	return getTokenLimit(plan, nil)
 }
 
 func getTokenLimit(planType string, blocks []Block) int {
-	if planType == "custom_max" && blocks != nil {
-		maxTokens := 0
-		for _, block := range blocks {
-			if !block.IsGap && !block.IsActive && block.TotalTokens > maxTokens {
-				maxTokens = block.TotalTokens
-			}
-		}
-		if maxTokens > 0 {
-			return maxTokens
-		}
+	// Use the new estimator for all plans
+	if blocks != nil {
+		return estimator.EstimateLimit(planType, blocks)
 	}
 
+	// Fallback to static limits
 	limits := map[string]int{
 		"pro":   7000,
 		"max5":  35000,
@@ -223,6 +228,13 @@ func buildDisplay(activeBlock *Block, allBlocks []Block, tokenLimit *int) string
 
 	// Add notifications if needed
 	addNotifications(&buffer, tokens, tokenLimit)
+
+	// Add accuracy warning if needed
+	if activeBlock != nil && tokenLimit != nil {
+		if warning := estimator.GetAccuracyReport(plan, activeBlock.TotalTokens, *tokenLimit); warning != "" {
+			buffer.WriteString("\n" + color.YellowString(warning))
+		}
+	}
 
 	return buffer.String()
 }
