@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -38,12 +39,13 @@ type DisplayConfig struct {
 
 // Block represents a usage block from ccusage
 type Block struct {
-	StartTime     string `json:"startTime"`
-	ActualEndTime string `json:"actualEndTime"`
-	TotalTokens   int    `json:"totalTokens"`
-	Entries       int    `json:"entries"`
-	IsActive      bool   `json:"isActive"`
-	IsGap         bool   `json:"isGap"`
+	StartTime     string   `json:"startTime"`
+	ActualEndTime string   `json:"actualEndTime"`
+	TotalTokens   int      `json:"totalTokens"`
+	Entries       int      `json:"entries"`
+	IsActive      bool     `json:"isActive"`
+	IsGap         bool     `json:"isGap"`
+	Models        []string `json:"models"`
 }
 
 // CCUsageData represents the JSON response from ccusage
@@ -55,6 +57,31 @@ type CCUsageData struct {
 type DailyUsage struct {
 	Date      string  `json:"date"`
 	TotalCost float64 `json:"totalCost"`
+}
+
+// SessionData represents session data from ccusage session command
+type SessionData struct {
+	Sessions []SessionInfo `json:"sessions"`
+}
+
+// SessionInfo represents individual session information
+type SessionInfo struct {
+	SessionID        string            `json:"sessionId"`
+	InputTokens      int               `json:"inputTokens"`
+	OutputTokens     int               `json:"outputTokens"`
+	TotalTokens      int               `json:"totalTokens"`
+	TotalCost        float64           `json:"totalCost"`
+	LastActivity     string            `json:"lastActivity"`
+	ModelsUsed       []string          `json:"modelsUsed"`
+	ModelBreakdowns  []ModelBreakdown  `json:"modelBreakdowns"`
+}
+
+// ModelBreakdown represents per-model usage breakdown
+type ModelBreakdown struct {
+	ModelName    string  `json:"modelName"`
+	InputTokens  int     `json:"inputTokens"`
+	OutputTokens int     `json:"outputTokens"`
+	Cost         float64 `json:"cost"`
 }
 
 // Moved to session.go and display.go
@@ -270,4 +297,28 @@ func calculateHourlyBurnRate(blocks []Block, currentTime time.Time) float64 {
 
 // Removed getTimezone - now handled in display.go
 
-// Removed formatNumber - now in utils.go
+// fetchCurrentSessionData fetches session data from ccusage
+func fetchCurrentSessionData() *SessionData {
+	cmd := exec.Command("ccusage", "session", "--json")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var data SessionData
+	if err := json.Unmarshal(output, &data); err != nil {
+		return nil
+	}
+
+	return &data
+}
+
+// getCurrentWorkingDir gets the current working directory for session matching
+func getCurrentWorkingDir() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	// Convert path separators for session ID matching
+	return strings.ReplaceAll(wd, "/", "-")
+}

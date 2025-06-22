@@ -1,17 +1,20 @@
 package main
 
 import (
+	"strings"
 	"time"
 )
 
 // Session represents an active Claude session with all related data
 type Session struct {
-	Block     *Block
-	StartTime time.Time
-	EndTime   time.Time
-	Metrics   SessionMetrics
-	BurnRate  float64
-	TodayCost float64
+	Block           *Block
+	StartTime       time.Time
+	EndTime         time.Time
+	Metrics         SessionMetrics
+	BurnRate        float64
+	TodayCost       float64
+	CurrentModels   []string
+	PrimaryModel    string
 }
 
 // SessionMetrics contains all calculated metrics for a session
@@ -26,11 +29,13 @@ func NewSession(block *Block, allBlocks []Block, tokenLimit int, currentTime tim
 	endTime := startTime.Add(5 * time.Hour)
 
 	session := &Session{
-		Block:     block,
-		StartTime: startTime,
-		EndTime:   endTime,
-		BurnRate:  calculateHourlyBurnRate(allBlocks, currentTime),
-		TodayCost: fetchTodayTotalCost(currentTime),
+		Block:         block,
+		StartTime:     startTime,
+		EndTime:       endTime,
+		BurnRate:      calculateHourlyBurnRate(allBlocks, currentTime),
+		TodayCost:     fetchTodayTotalCost(currentTime),
+		CurrentModels: block.Models,
+		PrimaryModel:  determinePrimaryModel(block.Models),
 	}
 
 	// Calculate metrics
@@ -117,3 +122,124 @@ func (s *Session) GetStatusColor() string {
 		return "green"
 	}
 }
+
+// determinePrimaryModel determines the currently active model from session data
+func determinePrimaryModel(models []string) string {
+	if len(models) == 0 {
+		return "unknown"
+	}
+	
+	// Get the current session model breakdown to determine the most recently used model
+	currentModel := getCurrentActiveModel()
+	if currentModel != "" {
+		return currentModel
+	}
+	
+	// Fallback: If only one non-synthetic model, use it
+	var realModels []string
+	for _, model := range models {
+		if model != "<synthetic>" {
+			realModels = append(realModels, model)
+		}
+	}
+	
+	if len(realModels) == 1 {
+		return formatModelName(realModels[0])
+	}
+	
+	// For multiple models, assume the most recent/likely model
+	// In practice, if there's usage switching, Sonnet is more likely to be current
+	// because Opus typically switches TO Sonnet when limits are reached
+	for _, model := range models {
+		if strings.Contains(strings.ToLower(model), "sonnet") {
+			return model
+		}
+	}
+	
+	for _, model := range models {
+		if strings.Contains(strings.ToLower(model), "opus") {
+			return model
+		}
+	}
+	
+	// Return first non-synthetic model
+	for _, model := range models {
+		if model != "<synthetic>" {
+			return formatModelName(model)
+		}
+	}
+	
+	return "unknown"
+}
+
+// getCurrentActiveModel tries to determine the current active model from session data
+func getCurrentActiveModel() string {
+	sessionData := fetchCurrentSessionData()
+	if sessionData == nil {
+		return ""
+	}
+	
+	// Find the current working directory session
+	currentDir := getCurrentWorkingDir()
+	for _, session := range sessionData.Sessions {
+		if strings.Contains(session.SessionID, currentDir) {
+			// If only one model is used in this session, that's the current one
+			if len(session.ModelsUsed) == 1 {
+				return formatModelName(session.ModelsUsed[0])
+			}
+			
+			// If multiple models, use intelligent heuristics
+			if len(session.ModelBreakdowns) > 0 {
+				// Strategy: If one model has significantly more recent usage,
+				// OR if Sonnet is present (indicating a switch from Opus), prefer it
+				
+				var opusBreakdown, sonnetBreakdown *ModelBreakdown
+				for i := range session.ModelBreakdowns {
+					breakdown := &session.ModelBreakdowns[i]
+					modelLower := strings.ToLower(breakdown.ModelName)
+					if strings.Contains(modelLower, "opus") {
+						opusBreakdown = breakdown
+					} else if strings.Contains(modelLower, "sonnet") {
+						sonnetBreakdown = breakdown
+					}
+				}
+				
+				// If both models are present, prefer Sonnet as it's likely the current one
+				// (Opus typically switches TO Sonnet when limits are reached)
+				if sonnetBreakdown != nil && opusBreakdown != nil {
+					return sonnetBreakdown.ModelName
+				}
+				
+				// If only one major model, use it
+				if sonnetBreakdown != nil {
+					return sonnetBreakdown.ModelName
+				}
+				if opusBreakdown != nil {
+					return opusBreakdown.ModelName
+				}
+				
+				// Fallback to highest output tokens
+				var maxOutputs int
+				var currentModel string
+				for _, breakdown := range session.ModelBreakdowns {
+					if breakdown.OutputTokens > maxOutputs {
+						maxOutputs = breakdown.OutputTokens
+						currentModel = breakdown.ModelName
+					}
+				}
+				if currentModel != "" {
+					return formatModelName(currentModel)
+				}
+			}
+		}
+	}
+	
+	return ""
+}
+
+// formatModelName converts full model name to display name
+func formatModelName(fullName string) string {
+	// Use the actual model name from ccusage as-is
+	return fullName
+}
+
