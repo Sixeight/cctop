@@ -41,25 +41,44 @@ goreleaser build --snapshot --clean
 
 The system consists of several key components:
 
-1. **main.go** (~450 lines): Entry point, display loop, and UI rendering
-   - Terminal control using ANSI escape sequences
-   - 3-second update loop with flicker-free rendering
+1. **main.go** (~320 lines): Entry point, application flow, and command handling
+   - Cobra CLI integration with analyze command
    - Signal handling for graceful shutdown
+   - Main update loop orchestration
 
-2. **estimator.go** (~220 lines): Dynamic token limit estimation
+2. **display.go** (~240 lines): Terminal rendering and UI components
+   - ANSI escape sequence terminal control
+   - Progress bar rendering with color coding
+   - Header, status bar, and notification display
+   - Plan name display in footer format: "Tokens: xxx/xxx (plan)"
+
+3. **session.go** (~270 lines): Session data management and model detection
+   - Session lifecycle tracking and metrics calculation
+   - Active model detection with intelligent heuristics
+   - Time and token metrics computation
+
+4. **estimator.go** (~210 lines): Dynamic token limit estimation
    - Hybrid approach combining official limits with historical data
    - Outlier detection using IQR method
    - Adaptive weighting based on sample size and variance
+   - Auto plan resolution (auto → detected plan)
 
-3. **analyze_accuracy.go** (~185 lines): Diagnostic tool for estimation accuracy
+5. **config.go** (~95 lines): Application configuration management
+   - Plan validation and token limit mappings
+   - Threshold configuration for auto-switching
+   - Progress bar color configuration
+
+6. **analyze_accuracy.go** (~185 lines): Diagnostic tool for estimation accuracy
    - Temporary/debug tool - excluded from linting in .golangci.yml
 
 ### Data Flow
 
 ```
-ccusage (npm) → JSON → main.go → estimator.go → Display
-                           ↓
-                    analyze_accuracy.go (diagnostic)
+ccusage (npm) → JSON → main.go → session.go → display.go
+                         ↓           ↓
+                   estimator.go → config.go
+                         ↓
+                 analyze_accuracy.go (diagnostic)
 ```
 
 ### Session Tracking System
@@ -81,6 +100,9 @@ The tool implements Claude's 5-hour rolling window session system:
 4. **Progress Bars**: Custom implementation with color coding:
    - Tokens: green (<60%) → yellow (60-80%) → red (>80%)
    - Session: always blue (neutral time indicator)
+5. **Plan Display**: Footer shows current plan in format "Tokens: xxx/xxx (plan)"
+   - For auto plan: shows detected plan (pro/max5/max20) without "(auto)" suffix
+   - Plan detection based on historical usage patterns
 
 ### Token Limit Estimation System
 
@@ -119,8 +141,11 @@ The `TokenLimitEstimator` provides dynamic, learning-based token limit estimatio
 3. **Signal Handling**: Ctrl+C properly restores cursor visibility
 4. **Number Formatting**: Custom comma insertion for readability (e.g., 7,000)
 5. **JSON Parsing**: Block structure includes `entries` field for message count
-6. **Estimator Initialization**: Global `estimator` instance created in main()
-7. **Tool Management**: Development tools are managed via go.mod's `tool` directive (Go 1.24+)
+6. **Component Initialization**: Global instances (estimator, display, burnCalc) created in main()
+7. **Code Quality**: Functions are kept under 15 cyclomatic complexity for maintainability
+   - Complex functions are broken down into smaller, focused helper functions
+   - Named return values used where appropriate for clarity
+8. **Tool Management**: Development tools are managed via go.mod's `tool` directive (Go 1.24+)
    - No manual installation needed
    - Tools run via `go run` commands in Makefile
 
