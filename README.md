@@ -8,12 +8,12 @@ cctop - 15:04:05  cost: $12.45  burn rate: 156.30 tokens/min
 Tokens  [||||||||||||||||||||||||||                        ] 52.0% (3,640/7,000)
 Session [||||||||||||||||||||||||||||||||||||||||||||||    ] 92.0% (24m remaining)
 
-Tokens: 3,640/7,000  Estimate: 16:45  Reset: 15:30  Status: OK
+Tokens: 3,640/7,000 (pro)  Estimate: 16:45  Reset: 15:30  Status: OK
 ```
 
 ## Features
 
-- Real-time token usage monitoring
+- Real-time token usage monitoring with plan detection
 - Auto mode: Automatically detects your plan level from usage history
 - Dynamic token limit estimation that improves over time
 - Burn rate calculation with accurate depletion predictions
@@ -47,6 +47,7 @@ cctop --timezone US/Eastern
 
 - **Tokens bar**: Shows current token usage (green → yellow → red)
 - **Session bar**: Shows session progress (blue, 0-100% over 5 hours)
+- **Plan indicator**: Shows current plan in footer (auto mode displays detected plan)
 - **Status indicators**:
   - `OK` - Tokens will last until session ends
   - `WARNING` - Tokens will run out before session ends
