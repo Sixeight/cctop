@@ -21,19 +21,19 @@ func TestGetTokenLimit(t *testing.T) {
 			name:     "Pro plan",
 			planType: "pro",
 			blocks:   nil,
-			expected: 7000,
+			expected: 6750, // 45 * 150
 		},
 		{
 			name:     "Max5 plan",
 			planType: "max5",
 			blocks:   nil,
-			expected: 35000,
+			expected: 33750, // 225 * 150
 		},
 		{
 			name:     "Max20 plan",
 			planType: "max20",
 			blocks:   nil,
-			expected: 140000,
+			expected: 135000, // 900 * 150
 		},
 		{
 			name:     "Auto with blocks",
@@ -49,26 +49,27 @@ func TestGetTokenLimit(t *testing.T) {
 			name:     "Auto without blocks",
 			planType: "auto",
 			blocks:   nil,
-			expected: 7000, // Falls back to static limits
+			expected: 6750, // Falls back to pro plan: 45 * 150
 		},
 		{
 			name:     "Invalid plan",
 			planType: "invalid",
 			blocks:   nil,
-			expected: 7000, // Default to pro
+			expected: 6750, // Default to pro: 45 * 150
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getTokenLimit(tt.planType, tt.blocks)
+			estimator := NewTokenLimitEstimator()
+			result := estimator.EstimateLimit(tt.planType, tt.blocks)
 			// Allow some variance for dynamic calculations
 			if tt.planType == "auto" && tt.blocks != nil {
 				if result < tt.expected-1000 || result > tt.expected+1000 {
-					t.Errorf("getTokenLimit(%s) = %d, expected around %d", tt.planType, result, tt.expected)
+					t.Errorf("EstimateLimit(%s) = %d, expected around %d", tt.planType, result, tt.expected)
 				}
 			} else if result != tt.expected {
-				t.Errorf("getTokenLimit(%s) = %d, expected %d", tt.planType, result, tt.expected)
+				t.Errorf("EstimateLimit(%s) = %d, expected %d", tt.planType, result, tt.expected)
 			}
 		})
 	}
@@ -188,13 +189,14 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 
 func TestCreateProgressBars(t *testing.T) {
 	// Test progress bar for tokens
-	bar := createProgressBar(50.0, false)
+	display := NewDisplay("Asia/Tokyo")
+	bar := display.createProgressBar(50.0, false)
 	if bar == "" {
 		t.Error("createProgressBar returned empty string for token bar")
 	}
 
 	// Test progress bar for time
-	bar = createProgressBar(50.0, true)
+	bar = display.createProgressBar(50.0, true)
 	if bar == "" {
 		t.Error("createProgressBar returned empty string for time bar")
 	}

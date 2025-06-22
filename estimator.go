@@ -22,9 +22,9 @@ type BaseLimit struct {
 func NewTokenLimitEstimator() *TokenLimitEstimator {
 	return &TokenLimitEstimator{
 		baseLimits: map[string]BaseLimit{
-			"pro":   {Messages: 45, DefaultTokensPerMsg: 150},
-			"max5":  {Messages: 225, DefaultTokensPerMsg: 150},
-			"max20": {Messages: 900, DefaultTokensPerMsg: 150},
+			"pro":   {Messages: ProPlanMessages, DefaultTokensPerMsg: DefaultTokensPerMsg},
+			"max5":  {Messages: Max5PlanMessages, DefaultTokensPerMsg: DefaultTokensPerMsg},
+			"max20": {Messages: Max20PlanMessages, DefaultTokensPerMsg: DefaultTokensPerMsg},
 		},
 	}
 }
@@ -56,20 +56,20 @@ func (e *TokenLimitEstimator) estimateFromHistory(blocks []Block) int {
 		}
 	}
 
-	if len(sessionMaxTokens) < 5 {
+	if len(sessionMaxTokens) < MinHistoricalSessions {
 		// Not enough data for reliable estimation
 		return 0
 	}
 
 	// Remove extreme outliers using IQR method
 	cleaned := removeOutliers(sessionMaxTokens)
-	if len(cleaned) < 3 {
-		// If too many outliers removed, use 85th percentile of original
-		return calculatePercentile(sessionMaxTokens, 85)
+	if len(cleaned) < MinCleanedSessions {
+		// If too many outliers removed, use fallback percentile of original
+		return calculatePercentile(sessionMaxTokens, FallbackPercentile)
 	}
 
-	// Use 90th percentile of cleaned data (more conservative than 95th)
-	return calculatePercentile(cleaned, 90)
+	// Use historical percentile of cleaned data
+	return calculatePercentile(cleaned, HistoricalPercentile)
 }
 
 // removeOutliers removes values outside 1.5 * IQR
@@ -86,8 +86,8 @@ func removeOutliers(values []int) []int {
 	q3 := calculatePercentile(sorted, 75)
 	iqr := q3 - q1
 
-	lowerBound := q1 - int(1.5*float64(iqr))
-	upperBound := q3 + int(1.5*float64(iqr))
+	lowerBound := q1 - int(OutlierIQRMultiplier*float64(iqr))
+	upperBound := q3 + int(OutlierIQRMultiplier*float64(iqr))
 
 	var cleaned []int
 	for _, v := range values {
@@ -133,9 +133,9 @@ func (e *TokenLimitEstimator) detectPlanFromHistory(blocks []Block) string {
 
 	// Detect plan based on historical max usage
 	switch {
-	case maxTokens > 100000:
+	case maxTokens > Max20DetectionThreshold:
 		return "max20"
-	case maxTokens > 25000:
+	case maxTokens > Max5DetectionThreshold:
 		return "max5"
 	default:
 		return "pro"
@@ -146,9 +146,9 @@ func (e *TokenLimitEstimator) detectPlanFromHistory(blocks []Block) string {
 func (e *TokenLimitEstimator) calculateAvgTokensPerMessage(blocks []Block) int {
 	var totalTokens, totalEntries int
 
-	// Only use recent complete sessions (last 10)
+	// Only use recent complete sessions
 	count := 0
-	for i := len(blocks) - 1; i >= 0 && count < 10; i-- {
+	for i := len(blocks) - 1; i >= 0 && count < RecentSessionsCount; i-- {
 		block := blocks[i]
 		if !block.IsGap && !block.IsActive && block.Entries > 0 {
 			totalTokens += block.TotalTokens
@@ -190,7 +190,7 @@ func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens, estim
 
 	deviation := float64(actualTokens-estimatedLimit) / float64(estimatedLimit) * 100
 
-	if math.Abs(deviation) > 10 {
+	if math.Abs(deviation) > AccuracyWarningThreshold {
 		return fmt.Sprintf("Warning: Token limit estimation may be inaccurate (deviation: %.1f%%)", deviation)
 	}
 
@@ -210,9 +210,9 @@ func (e *TokenLimitEstimator) calculateDynamicWeight(blocks []Block) float64 {
 
 	// Less weight for small sample sizes
 	if sampleSize < 10 {
-		return 0.3
+		return WeightSmallSample
 	} else if sampleSize < 20 {
-		return 0.5
+		return WeightMediumSample
 	}
 
 	// Calculate coefficient of variation (CV)
@@ -234,12 +234,12 @@ func (e *TokenLimitEstimator) calculateDynamicWeight(blocks []Block) float64 {
 		cv := stdDev / float64(mean)
 
 		// High variance = less trust in historical data
-		if cv > 0.5 {
-			return 0.4
-		} else if cv > 0.3 {
-			return 0.6
+		if cv > VarianceCoefficientHigh {
+			return WeightHighVariance
+		} else if cv > VarianceCoefficientMedium {
+			return WeightMediumVariance
 		}
 	}
 
-	return 0.8 // High confidence with good data
+	return WeightLargeSample // High confidence with good data
 }
