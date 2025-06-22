@@ -48,7 +48,7 @@ func formatTime(minutes float64) string {
 		return fmt.Sprintf("%dh", hours)
 	}
 
-	return fmt.Sprintf("%dh%dm", hours, mins)
+	return fmt.Sprintf("%dh %dm", hours, mins)
 }
 
 // Terminal control functions

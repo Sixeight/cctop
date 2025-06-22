@@ -94,7 +94,7 @@ func TestFormatTime(t *testing.T) {
 		{
 			name:     "Hour and minutes",
 			minutes:  125,
-			expected: "2h5m",
+			expected: "2h 5m",
 		},
 		{
 			name:     "Multiple hours exact",
