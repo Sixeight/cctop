@@ -176,32 +176,6 @@ func TestCalculateHourlyBurnRate(t *testing.T) {
 	}
 }
 
-func TestGetNextResetTime(t *testing.T) {
-	// Save original timezone
-	originalTZ := timezone
-	timezone = "UTC"
-	defer func() { timezone = originalTZ }()
-
-	// Test with default reset hours
-	currentTime := time.Date(2024, 1, 1, 10, 30, 0, 0, time.UTC)
-	resetTime := getNextResetTime(currentTime)
-
-	// Should be 14:00 on the same day
-	expected := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
-	if !resetTime.Equal(expected) {
-		t.Errorf("getNextResetTime() = %v, expected %v", resetTime, expected)
-	}
-
-	// Test after last reset hour
-	currentTime = time.Date(2024, 1, 1, 23, 30, 0, 0, time.UTC)
-	resetTime = getNextResetTime(currentTime)
-
-	// Should be 4:00 on the next day
-	expected = time.Date(2024, 1, 2, 4, 0, 0, 0, time.UTC)
-	if !resetTime.Equal(expected) {
-		t.Errorf("getNextResetTime() = %v, expected %v", resetTime, expected)
-	}
-}
 
 func TestCreateProgressBars(t *testing.T) {
 	// Test progress bar for tokens

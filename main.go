@@ -35,6 +35,12 @@ type CCUsageData struct {
 	Blocks []Block `json:"blocks"`
 }
 
+// DailyUsage represents daily usage data from ccusage
+type DailyUsage struct {
+	Date      string  `json:"date"`
+	TotalCost float64 `json:"totalCost"`
+}
+
 // TokenMetrics holds calculated token usage information
 type TokenMetrics struct {
 	Used       int
@@ -207,9 +213,10 @@ func buildDisplay(activeBlock *Block, allBlocks []Block, tokenLimit *int) string
 	display := createDisplayConfig(allBlocks)
 	times := calculateTimeMetrics(activeBlock, display.CurrentTime)
 	predictedEnd := calculatePredictedEnd(tokens, display.BurnRate, display.CurrentTime, times.SessionEndTime)
+	todayTotalCost := fetchTodayTotalCost(display.CurrentTime)
 
 	// Build display sections
-	buildHeader(&buffer, display)
+	buildHeader(&buffer, display, todayTotalCost)
 	buildTokenBar(&buffer, tokens)
 	buildTimeBar(&buffer, times)
 	buildStatusBar(&buffer, tokens, times, predictedEnd, display)
@@ -283,9 +290,39 @@ func calculatePredictedEnd(tokens TokenMetrics, burnRate float64, currentTime, s
 	return sessionEndTime
 }
 
-func buildHeader(buffer *strings.Builder, config DisplayConfig) {
-	buffer.WriteString(fmt.Sprintf("cctop - %s  burn rate: %.2f tokens/min\n\n",
+func fetchTodayTotalCost(currentTime time.Time) float64 {
+	// Get today's date in YYYY-MM-DD format
+	todayStr := currentTime.Format("2006-01-02")
+	
+	// Run ccusage daily command
+	cmd := exec.Command("ccusage", "daily", "--json")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
+	
+	// Parse JSON response
+	var response struct {
+		Daily []DailyUsage `json:"daily"`
+	}
+	if err := json.Unmarshal(output, &response); err != nil {
+		return 0.0
+	}
+	
+	// Find today's entry
+	for _, day := range response.Daily {
+		if day.Date == todayStr {
+			return day.TotalCost
+		}
+	}
+	
+	return 0.0
+}
+
+func buildHeader(buffer *strings.Builder, config DisplayConfig, todayTotalCost float64) {
+	buffer.WriteString(fmt.Sprintf("cctop - %s  cost: $%.2f  burn rate: %.2f tokens/min\n\n",
 		config.CurrentTime.Format("15:04:05"),
+		todayTotalCost,
 		config.BurnRate))
 }
 

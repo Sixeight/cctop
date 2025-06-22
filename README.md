@@ -3,7 +3,7 @@
 Monitor your Claude AI token usage in real-time with an htop-inspired terminal interface.
 
 ```
-cctop - 15:04:05  burn rate: 156.30 tokens/min
+cctop - 15:04:05  cost: $12.45  burn rate: 156.30 tokens/min
 
 Tokens  [||||||||||||||||||||||||||                        ] 52.0% (3,640/7,000)
 Session [||||||||||||||||||||||||||||||||||||||||||||||    ] 92.0% (24m remaining)
