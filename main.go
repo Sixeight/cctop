@@ -66,14 +66,14 @@ type SessionData struct {
 
 // SessionInfo represents individual session information
 type SessionInfo struct {
-	SessionID        string            `json:"sessionId"`
-	InputTokens      int               `json:"inputTokens"`
-	OutputTokens     int               `json:"outputTokens"`
-	TotalTokens      int               `json:"totalTokens"`
-	TotalCost        float64           `json:"totalCost"`
-	LastActivity     string            `json:"lastActivity"`
-	ModelsUsed       []string          `json:"modelsUsed"`
-	ModelBreakdowns  []ModelBreakdown  `json:"modelBreakdowns"`
+	SessionID       string           `json:"sessionId"`
+	InputTokens     int              `json:"inputTokens"`
+	OutputTokens    int              `json:"outputTokens"`
+	TotalTokens     int              `json:"totalTokens"`
+	TotalCost       float64          `json:"totalCost"`
+	LastActivity    string           `json:"lastActivity"`
+	ModelsUsed      []string         `json:"modelsUsed"`
+	ModelBreakdowns []ModelBreakdown `json:"modelBreakdowns"`
 }
 
 // ModelBreakdown represents per-model usage breakdown

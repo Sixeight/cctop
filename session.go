@@ -7,14 +7,14 @@ import (
 
 // Session represents an active Claude session with all related data
 type Session struct {
-	Block           *Block
-	StartTime       time.Time
-	EndTime         time.Time
-	Metrics         SessionMetrics
-	BurnRate        float64
-	TodayCost       float64
-	CurrentModels   []string
-	PrimaryModel    string
+	Block         *Block
+	StartTime     time.Time
+	EndTime       time.Time
+	Metrics       SessionMetrics
+	BurnRate      float64
+	TodayCost     float64
+	CurrentModels []string
+	PrimaryModel  string
 }
 
 // SessionMetrics contains all calculated metrics for a session
@@ -128,13 +128,13 @@ func determinePrimaryModel(models []string) string {
 	if len(models) == 0 {
 		return "unknown"
 	}
-	
+
 	// Get the current session model breakdown to determine the most recently used model
 	currentModel := getCurrentActiveModel()
 	if currentModel != "" {
 		return currentModel
 	}
-	
+
 	// Fallback: If only one non-synthetic model, use it
 	var realModels []string
 	for _, model := range models {
@@ -142,11 +142,11 @@ func determinePrimaryModel(models []string) string {
 			realModels = append(realModels, model)
 		}
 	}
-	
+
 	if len(realModels) == 1 {
 		return formatModelName(realModels[0])
 	}
-	
+
 	// For multiple models, assume the most recent/likely model
 	// In practice, if there's usage switching, Sonnet is more likely to be current
 	// because Opus typically switches TO Sonnet when limits are reached
@@ -155,20 +155,20 @@ func determinePrimaryModel(models []string) string {
 			return model
 		}
 	}
-	
+
 	for _, model := range models {
 		if strings.Contains(strings.ToLower(model), "opus") {
 			return model
 		}
 	}
-	
+
 	// Return first non-synthetic model
 	for _, model := range models {
 		if model != "<synthetic>" {
 			return formatModelName(model)
 		}
 	}
-	
+
 	return "unknown"
 }
 
@@ -178,7 +178,7 @@ func getCurrentActiveModel() string {
 	if sessionData == nil {
 		return ""
 	}
-	
+
 	// Find the current working directory session
 	currentDir := getCurrentWorkingDir()
 	for _, session := range sessionData.Sessions {
@@ -187,12 +187,12 @@ func getCurrentActiveModel() string {
 			if len(session.ModelsUsed) == 1 {
 				return formatModelName(session.ModelsUsed[0])
 			}
-			
+
 			// If multiple models, use intelligent heuristics
 			if len(session.ModelBreakdowns) > 0 {
 				// Strategy: If one model has significantly more recent usage,
 				// OR if Sonnet is present (indicating a switch from Opus), prefer it
-				
+
 				var opusBreakdown, sonnetBreakdown *ModelBreakdown
 				for i := range session.ModelBreakdowns {
 					breakdown := &session.ModelBreakdowns[i]
@@ -203,13 +203,13 @@ func getCurrentActiveModel() string {
 						sonnetBreakdown = breakdown
 					}
 				}
-				
+
 				// If both models are present, prefer Sonnet as it's likely the current one
 				// (Opus typically switches TO Sonnet when limits are reached)
 				if sonnetBreakdown != nil && opusBreakdown != nil {
 					return sonnetBreakdown.ModelName
 				}
-				
+
 				// If only one major model, use it
 				if sonnetBreakdown != nil {
 					return sonnetBreakdown.ModelName
@@ -217,7 +217,7 @@ func getCurrentActiveModel() string {
 				if opusBreakdown != nil {
 					return opusBreakdown.ModelName
 				}
-				
+
 				// Fallback to highest output tokens
 				var maxOutputs int
 				var currentModel string
@@ -233,7 +233,7 @@ func getCurrentActiveModel() string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -242,4 +242,3 @@ func formatModelName(fullName string) string {
 	// Use the actual model name from ccusage as-is
 	return fullName
 }
-
