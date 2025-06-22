@@ -10,6 +10,7 @@ type Session struct {
 	StartTime     time.Time
 	EndTime       time.Time
 	Block         *Block
+	AllBlocks     []Block
 	PrimaryModel  string
 	CurrentModels []string
 	Metrics       SessionMetrics
@@ -30,6 +31,7 @@ func NewSession(block *Block, allBlocks []Block, tokenLimit int, currentTime tim
 
 	session := &Session{
 		Block:         block,
+		AllBlocks:     allBlocks,
 		StartTime:     startTime,
 		EndTime:       endTime,
 		BurnRate:      burnCalc.Calculate(allBlocks, currentTime),
@@ -179,61 +181,88 @@ func getCurrentActiveModel() string {
 		return ""
 	}
 
-	// Find the current working directory session
-	currentDir := getCurrentWorkingDir()
-	for _, session := range sessionData.Sessions {
-		if strings.Contains(session.SessionID, currentDir) {
-			// If only one model is used in this session, that's the current one
-			if len(session.ModelsUsed) == 1 {
-				return formatModelName(session.ModelsUsed[0])
-			}
-
-			// If multiple models, use intelligent heuristics
-			if len(session.ModelBreakdowns) > 0 {
-				// Strategy: If one model has significantly more recent usage,
-				// OR if Sonnet is present (indicating a switch from Opus), prefer it
-
-				var opusBreakdown, sonnetBreakdown *ModelBreakdown
-				for i := range session.ModelBreakdowns {
-					breakdown := &session.ModelBreakdowns[i]
-					modelLower := strings.ToLower(breakdown.ModelName)
-					if strings.Contains(modelLower, "opus") {
-						opusBreakdown = breakdown
-					} else if strings.Contains(modelLower, "sonnet") {
-						sonnetBreakdown = breakdown
-					}
-				}
-
-				// If both models are present, prefer Sonnet as it's likely the current one
-				// (Opus typically switches TO Sonnet when limits are reached)
-				if sonnetBreakdown != nil && opusBreakdown != nil {
-					return sonnetBreakdown.ModelName
-				}
-
-				// If only one major model, use it
-				if sonnetBreakdown != nil {
-					return sonnetBreakdown.ModelName
-				}
-				if opusBreakdown != nil {
-					return opusBreakdown.ModelName
-				}
-
-				// Fallback to highest output tokens
-				var maxOutputs int
-				var currentModel string
-				for _, breakdown := range session.ModelBreakdowns {
-					if breakdown.OutputTokens > maxOutputs {
-						maxOutputs = breakdown.OutputTokens
-						currentModel = breakdown.ModelName
-					}
-				}
-				if currentModel != "" {
-					return formatModelName(currentModel)
-				}
-			}
-		}
+	currentSession := findCurrentWorkingDirSession(sessionData.Sessions)
+	if currentSession == nil {
+		return ""
 	}
 
+	return determineActiveModel(currentSession)
+}
+
+// findCurrentWorkingDirSession finds the session for current working directory
+func findCurrentWorkingDirSession(sessions []SessionInfo) *SessionInfo {
+	currentDir := getCurrentWorkingDir()
+	for i := range sessions {
+		if strings.Contains(sessions[i].SessionID, currentDir) {
+			return &sessions[i]
+		}
+	}
+	return nil
+}
+
+// determineActiveModel determines the active model from session data
+func determineActiveModel(session *SessionInfo) string {
+	// If only one model is used in this session, that's the current one
+	if len(session.ModelsUsed) == 1 {
+		return formatModelName(session.ModelsUsed[0])
+	}
+
+	if len(session.ModelBreakdowns) == 0 {
+		return ""
+	}
+
+	// Try intelligent heuristics for multiple models
+	return selectModelFromBreakdowns(session.ModelBreakdowns)
+}
+
+// selectModelFromBreakdowns selects the most likely active model
+func selectModelFromBreakdowns(breakdowns []ModelBreakdown) string {
+	opusBreakdown, sonnetBreakdown := categorizeModelBreakdowns(breakdowns)
+
+	// If both models are present, prefer Sonnet as it's likely the current one
+	if sonnetBreakdown != nil && opusBreakdown != nil {
+		return sonnetBreakdown.ModelName
+	}
+
+	// If only one major model, use it
+	if sonnetBreakdown != nil {
+		return sonnetBreakdown.ModelName
+	}
+	if opusBreakdown != nil {
+		return opusBreakdown.ModelName
+	}
+
+	// Fallback to highest output tokens
+	return selectModelWithHighestTokens(breakdowns)
+}
+
+// categorizeModelBreakdowns categorizes models into Opus and Sonnet
+func categorizeModelBreakdowns(breakdowns []ModelBreakdown) (opus, sonnet *ModelBreakdown) {
+	for i := range breakdowns {
+		breakdown := &breakdowns[i]
+		modelLower := strings.ToLower(breakdown.ModelName)
+		if strings.Contains(modelLower, "opus") {
+			opus = breakdown
+		} else if strings.Contains(modelLower, "sonnet") {
+			sonnet = breakdown
+		}
+	}
+	return
+}
+
+// selectModelWithHighestTokens selects model with highest output tokens
+func selectModelWithHighestTokens(breakdowns []ModelBreakdown) string {
+	var maxOutputs int
+	var currentModel string
+	for _, breakdown := range breakdowns {
+		if breakdown.OutputTokens > maxOutputs {
+			maxOutputs = breakdown.OutputTokens
+			currentModel = breakdown.ModelName
+		}
+	}
+	if currentModel != "" {
+		return formatModelName(currentModel)
+	}
 	return ""
 }
 

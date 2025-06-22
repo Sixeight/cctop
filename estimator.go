@@ -197,6 +197,14 @@ func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens, estim
 	return ""
 }
 
+// GetActualPlan returns the actual plan being used (resolves 'auto' to detected plan)
+func (e *TokenLimitEstimator) GetActualPlan(plan string, blocks []Block) string {
+	if plan == "auto" {
+		return e.detectPlanFromHistory(blocks)
+	}
+	return plan
+}
+
 // calculateDynamicWeight determines how much to trust historical data
 func (e *TokenLimitEstimator) calculateDynamicWeight(blocks []Block) float64 {
 	var sessionTokens []int

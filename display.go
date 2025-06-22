@@ -37,11 +37,14 @@ func (d *Display) Render(session *Session, estimator *TokenLimitEstimator, plan 
 		BurnRate:    session.BurnRate,
 	}
 
+	// Resolve actual plan for display (auto -> detected plan)
+	displayPlan := estimator.GetActualPlan(plan, session.AllBlocks)
+
 	// Build display sections
 	d.renderHeader(&buffer, session)
 	d.renderTokenBar(&buffer, session.Metrics.Tokens)
 	d.renderTimeBar(&buffer, session.Metrics.Time)
-	d.renderStatusBar(&buffer, session)
+	d.renderStatusBar(&buffer, session, displayPlan)
 
 	// Add notifications
 	d.renderNotifications(&buffer, session, plan)
@@ -83,12 +86,13 @@ func (d *Display) renderTimeBar(buffer *strings.Builder, times TimeMetrics) {
 }
 
 // renderStatusBar renders the status information bar
-func (d *Display) renderStatusBar(buffer *strings.Builder, session *Session) {
+func (d *Display) renderStatusBar(buffer *strings.Builder, session *Session, plan string) {
 	predictedEnd := session.GetPredictedEndTime(d.config.CurrentTime)
 
-	fmt.Fprintf(buffer, "Tokens: %s/%s  Estimate: %s  Reset: %s  ",
+	fmt.Fprintf(buffer, "Tokens: %s/%s (%s)  Estimate: %s  Reset: %s  ",
 		formatNumber(session.Metrics.Tokens.Used),
 		formatNumber(session.Metrics.Tokens.Limit),
+		plan,
 		predictedEnd.In(d.timezone).Format("15:04"),
 		session.EndTime.In(d.timezone).Format("15:04"))
 
@@ -115,89 +119,114 @@ func (d *Display) renderNotifications(buffer *strings.Builder, session *Session,
 
 // createProgressBar creates a colored progress bar with optional switch line
 func (d *Display) createProgressBar(percentage float64, isTime bool, plan string) string {
-	// Ensure percentage is within valid range
-	if percentage < 0 {
-		percentage = 0
-	} else if percentage > 100 {
-		percentage = 100
-	}
-
+	percentage = d.clampPercentage(percentage)
 	filled := int(float64(ProgressBarWidth) * percentage / 100)
 	filled = clampInt(filled, 0, ProgressBarWidth)
 
-	// Calculate switch line position for Max plans
-	switchLinePos := -1
-	if !isTime && plan != "" {
-		switch plan {
-		case "max5":
-			switchLinePos = int(float64(ProgressBarWidth) * 20 / 100) // 20% for Max5
-		case "max20":
-			switchLinePos = int(float64(ProgressBarWidth) * 50 / 100) // 50% for Max20
-		}
-	}
+	switchLinePos := d.getSwitchLinePosition(plan, isTime)
+	barParts := d.buildBarParts(filled, switchLinePos)
 
-	// Build the bar with switch line marker
+	if isTime {
+		return d.colorTimeBar(barParts, filled)
+	}
+	return d.colorTokenBar(barParts, filled, switchLinePos, percentage)
+}
+
+// clampPercentage ensures percentage is within valid range
+func (d *Display) clampPercentage(percentage float64) float64 {
+	if percentage < 0 {
+		return 0
+	}
+	if percentage > 100 {
+		return 100
+	}
+	return percentage
+}
+
+// getSwitchLinePosition calculates switch line position for Max plans
+func (d *Display) getSwitchLinePosition(plan string, isTime bool) int {
+	if isTime || plan == "" {
+		return -1
+	}
+	switch plan {
+	case "max5":
+		return int(float64(ProgressBarWidth) * 20 / 100) // 20% for Max5
+	case "max20":
+		return int(float64(ProgressBarWidth) * 50 / 100) // 50% for Max20
+	default:
+		return -1
+	}
+}
+
+// buildBarParts builds the bar structure with markers
+func (d *Display) buildBarParts(filled, switchLinePos int) []string {
 	var barParts []string
 	for i := 0; i < ProgressBarWidth; i++ {
-		if i == switchLinePos {
-			barParts = append(barParts, "|") // Switch line marker (will be colored later)
-		} else if i < filled {
+		switch {
+		case i == switchLinePos:
+			barParts = append(barParts, "|") // Switch line marker
+		case i < filled:
 			barParts = append(barParts, "|")
-		} else {
+		default:
 			barParts = append(barParts, " ")
 		}
 	}
+	return barParts
+}
 
-	if isTime {
-		// Time bar: color only the filled portion (excluding switch line)
-		var coloredParts []string
-		for i, part := range barParts {
-			if i < filled && part != color.RedString("|") {
-				coloredParts = append(coloredParts, color.BlueString(part))
-			} else {
-				coloredParts = append(coloredParts, part)
-			}
-		}
-		return fmt.Sprintf("[%s]", strings.Join(coloredParts, ""))
-	}
-
-	// Token bar colors based on percentage
+// colorTimeBar colors the time progress bar
+func (d *Display) colorTimeBar(barParts []string, filled int) string {
 	var coloredParts []string
 	for i, part := range barParts {
-		if i < filled && part == "|" {
-			// Color the filled portion including switch line
-			if i == switchLinePos {
-				// Switch line: red if not crossed, same as other bars if crossed
-				if percentage <= float64(switchLinePos)*100/float64(ProgressBarWidth) {
-					coloredParts = append(coloredParts, color.RedString(part))
-				} else {
-					// After crossing switch line, use same color as other bars
-					switch {
-					case percentage < 60:
-						coloredParts = append(coloredParts, color.GreenString(part))
-					case percentage < 80:
-						coloredParts = append(coloredParts, color.YellowString(part))
-					default:
-						coloredParts = append(coloredParts, color.RedString(part))
-					}
-				}
-			} else {
-				// Regular bar coloring
-				switch {
-				case percentage < 60:
-					coloredParts = append(coloredParts, color.GreenString(part))
-				case percentage < 80:
-					coloredParts = append(coloredParts, color.YellowString(part))
-				default:
-					coloredParts = append(coloredParts, color.RedString(part))
-				}
-			}
+		if i < filled && part != color.RedString("|") {
+			coloredParts = append(coloredParts, color.BlueString(part))
 		} else {
 			coloredParts = append(coloredParts, part)
 		}
 	}
-
 	return fmt.Sprintf("[%s]", strings.Join(coloredParts, ""))
+}
+
+// colorTokenBar colors the token progress bar
+func (d *Display) colorTokenBar(barParts []string, filled, switchLinePos int, percentage float64) string {
+	var coloredParts []string
+	for i, part := range barParts {
+		if i < filled && part == "|" {
+			coloredParts = append(coloredParts, d.getTokenBarColor(i, switchLinePos, percentage))
+		} else {
+			coloredParts = append(coloredParts, part)
+		}
+	}
+	return fmt.Sprintf("[%s]", strings.Join(coloredParts, ""))
+}
+
+// getTokenBarColor returns the colored bar segment
+func (d *Display) getTokenBarColor(position, switchLinePos int, percentage float64) string {
+	if position == switchLinePos {
+		return d.getSwitchLineColor(switchLinePos, percentage)
+	}
+	return d.getRegularBarColor(percentage)
+}
+
+// getSwitchLineColor returns color for switch line position
+func (d *Display) getSwitchLineColor(switchLinePos int, percentage float64) string {
+	switchThreshold := float64(switchLinePos) * 100 / float64(ProgressBarWidth)
+	if percentage <= switchThreshold {
+		return color.RedString("|")
+	}
+	return d.getRegularBarColor(percentage)
+}
+
+// getRegularBarColor returns color based on percentage
+func (d *Display) getRegularBarColor(percentage float64) string {
+	switch {
+	case percentage < 60:
+		return color.GreenString("|")
+	case percentage < 80:
+		return color.YellowString("|")
+	default:
+		return color.RedString("|")
+	}
 }
 
 // formatModelInfo formats model information for display
