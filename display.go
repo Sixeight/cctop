@@ -57,15 +57,12 @@ func (d *Display) Render(session *Session, estimator *TokenLimitEstimator, plan 
 	return buffer.String()
 }
 
-// renderHeader renders the header section with model information
+// renderHeader renders the header section
 func (d *Display) renderHeader(buffer *strings.Builder, session *Session) {
-	modelInfo := d.formatModelInfo(session.PrimaryModel, session.CurrentModels)
-
-	fmt.Fprintf(buffer, "cctop - %s  cost: $%.2f  burn rate: %.2f tokens/min  %s\n\n",
+	fmt.Fprintf(buffer, "cctop - %s  cost: $%.2f  burn rate: %.2f tokens/min\n\n",
 		d.config.CurrentTime.Format("15:04:05"),
 		session.TodayCost,
-		d.config.BurnRate,
-		modelInfo)
+		d.config.BurnRate)
 }
 
 // renderTokenBar renders the token usage progress bar
@@ -229,18 +226,6 @@ func (d *Display) getRegularBarColor(percentage float64) string {
 	}
 }
 
-// formatModelInfo formats model information for display
-func (d *Display) formatModelInfo(primaryModel string, allModels []string) string {
-	modelText := fmt.Sprintf("model: %s", primaryModel)
-
-	// Color non-Opus models with light red to indicate they're not the premium model
-	if !strings.Contains(strings.ToLower(primaryModel), "opus") {
-		return color.HiRedString(modelText)
-	}
-
-	// Opus models display without color (default)
-	return modelText
-}
 
 // RenderError displays an error message
 func (d *Display) RenderError(message string) string {
