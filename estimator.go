@@ -8,8 +8,24 @@ import (
 
 // TokenLimitEstimator manages dynamic token limit estimation
 type TokenLimitEstimator struct {
-	// Base limits from official documentation (messages * avg tokens)
-	baseLimits map[string]BaseLimit
+	baseLimits         map[string]BaseLimit
+	estimationMethod   string
+	lastEstimationInfo EstimationInfo
+}
+
+// GetEstimationMethod returns the current estimation method
+func (e *TokenLimitEstimator) GetEstimationMethod() string {
+	return e.estimationMethod
+}
+
+// EstimationInfo contains details about the last estimation
+type EstimationInfo struct {
+	Method       string
+	SessionIndex int
+	TotalTokens  int
+	Messages     int
+	TokensPerMsg int
+	IsFromJSONL  bool
 }
 
 // BaseLimit represents official plan limits
@@ -26,7 +42,13 @@ func NewTokenLimitEstimator() *TokenLimitEstimator {
 			"max5":  {Messages: Max5PlanMessages, DefaultTokensPerMsg: DefaultTokensPerMsg},
 			"max20": {Messages: Max20PlanMessages, DefaultTokensPerMsg: DefaultTokensPerMsg},
 		},
+		estimationMethod: "p40", // Default to 40th percentile
 	}
+}
+
+// SetEstimationMethod sets the estimation method
+func (e *TokenLimitEstimator) SetEstimationMethod(method string) {
+	e.estimationMethod = method
 }
 
 // EstimateLimit estimates token limit using historical data and official limits
@@ -51,7 +73,7 @@ func (e *TokenLimitEstimator) estimateFromHistory(blocks []Block) int {
 	var sessionMaxTokens []int
 
 	for _, block := range blocks {
-		if !block.IsGap && !block.IsActive && block.TotalTokens > 0 {
+		if !block.IsGap && block.TotalTokens > 0 {
 			sessionMaxTokens = append(sessionMaxTokens, block.TotalTokens)
 		}
 	}
@@ -126,7 +148,7 @@ func (e *TokenLimitEstimator) calculateBaseLimit(plan string, blocks []Block) in
 func (e *TokenLimitEstimator) detectPlanFromHistory(blocks []Block) string {
 	var maxTokens int
 	for _, block := range blocks {
-		if !block.IsGap && !block.IsActive && block.TotalTokens > maxTokens {
+		if !block.IsGap && block.TotalTokens > maxTokens {
 			maxTokens = block.TotalTokens
 		}
 	}
@@ -142,26 +164,48 @@ func (e *TokenLimitEstimator) detectPlanFromHistory(blocks []Block) string {
 	}
 }
 
-// calculateAvgTokensPerMessage calculates average tokens per message from recent sessions
+// calculateAvgTokensPerMessage calculates tokens per message from the highest consuming session
 func (e *TokenLimitEstimator) calculateAvgTokensPerMessage(blocks []Block) int {
-	var totalTokens, totalEntries int
-
-	// Only use recent complete sessions
-	count := 0
-	for i := len(blocks) - 1; i >= 0 && count < RecentSessionsCount; i-- {
-		block := blocks[i]
-		if !block.IsGap && !block.IsActive && block.Entries > 0 {
-			totalTokens += block.TotalTokens
-			totalEntries += block.Entries
-			count++
-		}
-	}
-
-	if totalEntries == 0 {
+	// Find the session with the highest token consumption
+	maxTokenSession := e.findMaxTokenSession(blocks)
+	if maxTokenSession.block == nil || maxTokenSession.block.Entries == 0 {
 		return 0
 	}
 
-	return totalTokens / totalEntries
+	// Try to get actual message tokens from JSONL files
+	messageTokens, err := e.getMessageTokens(maxTokenSession.block)
+	
+	if err == nil && len(messageTokens) > 0 {
+		// Calculate tokens per message using the selected method
+		tokensPerMsg, methodDesc := e.calculateTokensPerMessage(messageTokens, maxTokenSession.block)
+		
+		// Store estimation info
+		e.lastEstimationInfo = EstimationInfo{
+			SessionIndex: maxTokenSession.index,
+			TotalTokens:  maxTokenSession.block.TotalTokens,
+			Messages:     maxTokenSession.block.Entries,
+			TokensPerMsg: tokensPerMsg,
+			Method:       methodDesc,
+			IsFromJSONL:  true,
+		}
+		
+		return tokensPerMsg
+	}
+	
+	// Fallback to average if we can't read JSONL data
+	avgTokensPerMsg := maxTokenSession.block.TotalTokens / maxTokenSession.block.Entries
+	
+	// Store estimation info
+	e.lastEstimationInfo = EstimationInfo{
+		SessionIndex: maxTokenSession.index,
+		TotalTokens:  maxTokenSession.block.TotalTokens,
+		Messages:     maxTokenSession.block.Entries,
+		TokensPerMsg: avgTokensPerMsg,
+		Method:       "average",
+		IsFromJSONL:  false,
+	}
+	
+	return avgTokensPerMsg
 }
 
 // calculatePercentile calculates the nth percentile of a slice of integers
@@ -211,37 +255,9 @@ func (e *TokenLimitEstimator) GetAccuracyReport(plan string, actualTokens, estim
 	return e.formatAccuracyWarning(deviation, false)
 }
 
-// GetHistoricalAccuracyReport evaluates estimation accuracy based on historical data
-func (e *TokenLimitEstimator) GetHistoricalAccuracyReport(plan string, blocks []Block, currentEstimatedLimit int) string {
-	if currentEstimatedLimit == 0 || len(blocks) < MinHistoricalSessions {
-		return ""
-	}
-
-	// Collect completed sessions for accuracy analysis
-	var deviations []float64
-	for _, block := range blocks {
-		if !block.IsGap && !block.IsActive && block.TotalTokens > 0 {
-			// Calculate what the limit would have been estimated for this historical session
-			historicalEstimate := e.EstimateLimit(plan, blocks)
-			if historicalEstimate > 0 {
-				deviation := e.calculateDeviation(block.TotalTokens, historicalEstimate)
-				deviations = append(deviations, math.Abs(deviation))
-			}
-		}
-	}
-
-	if len(deviations) < MinHistoricalSessions {
-		return ""
-	}
-
-	// Calculate average deviation
-	avgDeviation := 0.0
-	for _, d := range deviations {
-		avgDeviation += d
-	}
-	avgDeviation /= float64(len(deviations))
-
-	return e.formatAccuracyWarning(avgDeviation, true)
+// GetEstimationInfo returns the last estimation information
+func (e *TokenLimitEstimator) GetEstimationInfo() EstimationInfo {
+	return e.lastEstimationInfo
 }
 
 // GetActualPlan returns the actual plan being used (resolves 'auto' to detected plan)
@@ -256,7 +272,7 @@ func (e *TokenLimitEstimator) GetActualPlan(plan string, blocks []Block) string 
 func (e *TokenLimitEstimator) calculateDynamicWeight(blocks []Block) float64 {
 	var sessionTokens []int
 	for _, block := range blocks {
-		if !block.IsGap && !block.IsActive && block.TotalTokens > 0 {
+		if !block.IsGap && block.TotalTokens > 0 {
 			sessionTokens = append(sessionTokens, block.TotalTokens)
 		}
 	}

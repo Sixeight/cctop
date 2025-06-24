@@ -100,11 +100,14 @@ var rootCmd = &cobra.Command{
 	Run:   runMonitor,
 }
 
+var estimationMethod string
+
 func init() {
 	config = NewConfig()
 
 	rootCmd.Flags().StringVar(&config.Plan, "plan", config.Plan, "Claude plan type (auto, pro, max5, max20)")
 	rootCmd.Flags().StringVar(&config.Timezone, "timezone", config.Timezone, "Timezone for display")
+	rootCmd.Flags().StringVar(&estimationMethod, "est", "p40", "Estimation method (see 'cctop list-est' for all options)")
 
 	// Add analyze command for testing
 	rootCmd.AddCommand(&cobra.Command{
@@ -112,6 +115,15 @@ func init() {
 		Short: "Analyze token limit estimation accuracy",
 		Run: func(cmd *cobra.Command, args []string) {
 			testAccuracy()
+		},
+	})
+
+	// Add list-est command to show available estimation methods
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "list-est",
+		Short: "List available estimation methods",
+		Run: func(cmd *cobra.Command, args []string) {
+			listEstimationMethods()
 		},
 	})
 }
@@ -132,6 +144,9 @@ func main() {
 func runMonitor(cmd *cobra.Command, args []string) {
 	hideCursor()
 	defer showCursor()
+
+	// Set estimation method
+	estimator.SetEstimationMethod(estimationMethod)
 
 	setupSignalHandler()
 	tokenLimit := getInitialTokenLimit()
@@ -288,6 +303,31 @@ func fetchTodayTotalCost(currentTime time.Time) float64 {
 // Removed maxTime and minTime - now in utils.go
 
 // Removed getTimezone - now handled in display.go
+
+// listEstimationMethods displays available estimation methods
+func listEstimationMethods() {
+	fmt.Println("Available estimation methods for --est flag:")
+	fmt.Println()
+	fmt.Println("Percentile-based methods:")
+	fmt.Println("  pNN           - Percentile (1-99, e.g., p25, p40, p50)")
+	fmt.Println("  median        - Alias for p50")
+	fmt.Println()
+	fmt.Println("Mean-based methods:")
+	fmt.Println("  avg           - Simple average")
+	fmt.Println("  trimNN        - Trimmed mean (0-49, e.g., trim10, trim20)")
+	fmt.Println()
+	fmt.Println("Other methods:")
+	fmt.Println("  mode          - Most frequent value")
+	fmt.Println()
+	fmt.Println("Default: p40 (40th percentile)")
+	fmt.Println()
+	fmt.Println("Example usage:")
+	fmt.Println("  cctop --est p40           # Use 40th percentile (default)")
+	fmt.Println("  cctop --est p25           # Use 25th percentile (conservative)")
+	fmt.Println("  cctop --est median        # Use median (50th percentile)")
+	fmt.Println("  cctop --est trim10        # Use 10% trimmed mean")
+	fmt.Println("  cctop --est avg           # Use simple average")
+}
 
 // fetchCurrentSessionData fetches session data from ccusage
 func fetchCurrentSessionData() *SessionData {

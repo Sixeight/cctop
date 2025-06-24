@@ -49,10 +49,8 @@ func (d *Display) Render(session *Session, estimator *TokenLimitEstimator, plan 
 	// Add notifications
 	d.renderNotifications(&buffer, session, plan)
 
-	// Add accuracy warning if needed
-	if warning := estimator.GetHistoricalAccuracyReport(plan, session.AllBlocks, session.Metrics.Tokens.Limit); warning != "" {
-		buffer.WriteString("\n" + color.YellowString(warning))
-	}
+	// Add estimation info
+	d.renderEstimationInfo(&buffer, estimator, session, displayPlan)
 
 	return buffer.String()
 }
@@ -112,6 +110,41 @@ func (d *Display) renderNotifications(buffer *strings.Builder, session *Session,
 			color.HiBlackString("Note: Auto-switched to auto plan (%s tokens)",
 				formatNumber(session.Metrics.Tokens.Limit)))
 	}
+}
+
+// renderEstimationInfo shows how the token limit was estimated
+func (d *Display) renderEstimationInfo(buffer *strings.Builder, estimator *TokenLimitEstimator, session *Session, displayPlan string) {
+	info := estimator.GetEstimationInfo()
+	if info.SessionIndex == 0 {
+		// No estimation info available
+		return
+	}
+
+	// Get plan message limit
+	var planMessages int
+	switch displayPlan {
+	case "pro":
+		planMessages = ProPlanMessages
+	case "max5":
+		planMessages = Max5PlanMessages
+	case "max20":
+		planMessages = Max20PlanMessages
+	default:
+		planMessages = ProPlanMessages
+	}
+
+	// Format: "300 tokens/msg (13000 tokens, 500 msgs) x 45 messages (p40)"
+	fmt.Fprintf(buffer, "\n%s",
+		color.HiBlackString("%d tokens/msg (%s tokens, %d msgs) x %d messages (%s)",
+			info.TokensPerMsg,
+			formatNumber(info.TotalTokens),
+			info.Messages,
+			planMessages,
+			estimator.GetEstimationMethod()))
+
+	// Add link to Claude usage documentation
+	fmt.Fprintf(buffer, "\n%s",
+		color.HiBlackString("https://support.anthropic.com/en/articles/11014257-about-claude-s-max-plan-usage"))
 }
 
 // createProgressBar creates a colored progress bar with optional switch line

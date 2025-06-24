@@ -41,7 +41,7 @@ func TestTokenLimitEstimator(t *testing.T) {
 				{TotalTokens: 6800, Entries: 48, IsGap: false, IsActive: false},
 			},
 			minValue: 6000,
-			maxValue: 8000,
+			maxValue: 8640, // Updated to account for max session (7200/50=144) * 45 messages
 		},
 		{
 			name: "Max20 plan with varied token usage",
@@ -72,6 +72,62 @@ func TestTokenLimitEstimator(t *testing.T) {
 				// For range checks
 				t.Errorf("EstimateLimit() = %d, expected between %d and %d",
 					result, tt.minValue, tt.maxValue)
+			}
+		})
+	}
+}
+
+func TestCalculateAvgTokensPerMessage(t *testing.T) {
+	est := NewTokenLimitEstimator()
+
+	tests := []struct {
+		name     string
+		blocks   []Block
+		expected int
+	}{
+		{
+			name: "Multiple sessions with different consumption",
+			blocks: []Block{
+				{TotalTokens: 5000, Entries: 40, IsGap: false, IsActive: false}, // 125 per msg
+				{TotalTokens: 7200, Entries: 50, IsGap: false, IsActive: false}, // 144 per msg (highest)
+				{TotalTokens: 6000, Entries: 48, IsGap: false, IsActive: false}, // 125 per msg
+			},
+			expected: 144, // Should use the highest consuming session
+		},
+		{
+			name: "Single session",
+			blocks: []Block{
+				{TotalTokens: 8000, Entries: 50, IsGap: false, IsActive: false},
+			},
+			expected: 160,
+		},
+		{
+			name: "Active session included",
+			blocks: []Block{
+				{TotalTokens: 5000, Entries: 40, IsGap: true, IsActive: false},
+				{TotalTokens: 6000, Entries: 50, IsGap: false, IsActive: true},
+			},
+			expected: 120, // Now includes active sessions (6000/50)
+		},
+		{
+			name:     "Empty blocks",
+			blocks:   []Block{},
+			expected: 0,
+		},
+		{
+			name: "Session with zero entries",
+			blocks: []Block{
+				{TotalTokens: 5000, Entries: 0, IsGap: false, IsActive: false},
+			},
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := est.calculateAvgTokensPerMessage(tt.blocks)
+			if result != tt.expected {
+				t.Errorf("calculateAvgTokensPerMessage() = %d, expected %d", result, tt.expected)
 			}
 		})
 	}
