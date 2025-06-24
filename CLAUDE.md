@@ -24,6 +24,8 @@ make lint-check   # Quick linting for CI (errors only)
 # Development
 go run .                      # Run without building (uses auto plan)
 go run . --plan pro           # Run with specific plan
+go run . --est p25            # Run with custom estimation method
+go run . list-est             # List available estimation methods
 go run . analyze              # Analyze token limit estimation accuracy
 go test -v -run TestName      # Run specific test
 go test -v ./... -count=1     # Run all tests without cache
@@ -42,15 +44,15 @@ goreleaser build --snapshot --clean
 The system consists of several key components:
 
 1. **main.go** (~320 lines): Entry point, application flow, and command handling
-   - Cobra CLI integration with analyze command
+   - Cobra CLI integration with analyze and list-est commands
    - Signal handling for graceful shutdown
    - Main update loop orchestration
 
-2. **display.go** (~240 lines): Terminal rendering and UI components
+2. **display.go** (~265 lines): Terminal rendering and UI components
    - ANSI escape sequence terminal control
    - Progress bar rendering with color coding
    - Header, status bar, and notification display
-   - Plan name display in footer format: "Tokens: xxx/xxx (plan)"
+   - Estimation info display with method indicator
 
 3. **session.go** (~270 lines): Session data management and model detection
    - Session lifecycle tracking and metrics calculation
@@ -63,12 +65,21 @@ The system consists of several key components:
    - Adaptive weighting based on sample size and variance
    - Auto plan resolution (auto → detected plan)
 
-5. **config.go** (~95 lines): Application configuration management
+5. **estimator_helpers.go** (~85 lines): Helper functions for estimation
+   - Separates complex logic to maintain cyclomatic complexity <15
+   - Handles custom percentile and trim percentage parsing
+
+6. **jsonl_reader.go** (~230 lines): Reads actual message token data
+   - Parses Claude's JSONL log files from ~/.config/claude/projects/
+   - Aggregates data across all projects
+   - Provides median, trimmed mean, and mode calculations
+
+7. **config.go** (~95 lines): Application configuration management
    - Plan validation and token limit mappings
    - Threshold configuration for auto-switching
    - Progress bar color configuration
 
-6. **analyze_accuracy.go** (~185 lines): Diagnostic tool for estimation accuracy
+8. **analyze_accuracy.go** (~185 lines): Diagnostic tool for estimation accuracy
    - Temporary/debug tool - excluded from linting in .golangci.yml
 
 ### Data Flow
@@ -77,6 +88,8 @@ The system consists of several key components:
 ccusage (npm) → JSON → main.go → session.go → display.go
                          ↓           ↓
                    estimator.go → config.go
+                         ↓
+                 jsonl_reader.go
                          ↓
                  analyze_accuracy.go (diagnostic)
 ```
@@ -100,26 +113,34 @@ The tool implements Claude's 5-hour rolling window session system:
 4. **Progress Bars**: Custom implementation with color coding:
    - Tokens: green (<60%) → yellow (60-80%) → red (>80%)
    - Session: always blue (neutral time indicator)
-5. **Plan Display**: Footer shows current plan in format "Tokens: xxx/xxx (plan)"
-   - For auto plan: shows detected plan (pro/max5/max20) without "(auto)" suffix
-   - Plan detection based on historical usage patterns
+5. **Estimation Info**: Shows reasoning in format "123 tokens/msg (136,759 tokens, 446 msgs) x 900 messages (p40)"
+   - Displays: tokens/msg, total tokens from highest session, message count, plan limit, estimation method
 
 ### Token Limit Estimation System
 
 The `TokenLimitEstimator` provides dynamic, learning-based token limit estimation:
 
-1. **Hybrid Approach**: Combines official Anthropic message counts with historical usage data
-   - Official limits: Pro=45 msgs, Max5=225 msgs, Max20=900 msgs (×150 tokens/msg default)
-   - Historical data: 90th percentile of past sessions after outlier removal (changed from 95th)
+1. **Data Sources**:
+   - Primary: Claude's JSONL log files containing actual per-message token counts
+   - Fallback: ccusage session totals divided by message count
 
-2. **Adaptive Weighting**: Trust in historical data varies based on:
+2. **Estimation Methods** (configurable via --est flag):
+   - Percentile-based: `pNN` where NN is 1-99 (default: `p40`)
+   - Trimmed mean: `trimNN` where NN is 0-49
+   - Other: `median` (alias for p50), `mode`, `avg`
+
+3. **Session Selection**: Always uses the session with highest token consumption
+
+4. **Hybrid Approach**: Combines official Anthropic message counts with historical usage data
+   - Official limits: Pro=45 msgs, Max5=225 msgs, Max20=900 msgs
+   - Historical data: Selected statistical method applied to message tokens
+
+5. **Adaptive Weighting**: Trust in historical data varies based on:
    - Sample size: <10 sessions = 30% weight, 20+ sessions = up to 80% weight
    - Data variance: High coefficient of variation reduces trust
 
-3. **Outlier Removal**: Uses IQR (Interquartile Range) method to exclude extreme values
+6. **Outlier Removal**: Uses IQR (Interquartile Range) method to exclude extreme values
    - Values outside 1.5 * IQR are removed
-
-4. **Accuracy Monitoring**: Warns when estimation deviates >10% from actual usage
 
 ### Burn Rate Calculation
 - Analyzes all session blocks from the last hour
