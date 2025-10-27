@@ -48,7 +48,7 @@ jobs:
       run: make build
 
     - name: Upload binary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: cctop-${{ matrix.os }}-${{ matrix.go-version }}
         path: |
@@ -80,7 +80,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage-report
         path: |
